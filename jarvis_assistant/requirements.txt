@@ -1,0 +1,8 @@
+SpeechRecognition
+wyoming
+wyoming
+google-generativeai
+openai
+python-dotenv
+pvporcupine
+piper-tts
