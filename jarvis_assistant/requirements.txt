@@ -1,6 +1,5 @@
 SpeechRecognition
-wyoming
-wyoming
+wyoming>=1.4.0
 google-generativeai
 openai
 python-dotenv
