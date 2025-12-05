@@ -155,6 +155,7 @@ class JarvisHandler:
             await self.handle_event(event)
 
     async def handle_event(self, event: Event):
+        _LOGGER.debug(f"Handling event type: {event.type}")
         if AudioStart.is_type(event.type):
             self.state = "WAITING_FOR_WAKE_WORD"
             self.porcupine_buffer = b""
@@ -190,7 +191,10 @@ class JarvisHandler:
             elif self.state == "LISTENING_FOR_COMMAND":
                 self.audio_buffer.put_chunk(chunk.audio)
 
+        elif event.type == "describe":
+
             # Advertise Wake Word, TTS, and ASR so HA sees a complete assistant
+            _LOGGER.debug("Building Wake Info...")
             wake_info = [
                 WakeProgram(
                     name="porcupine",
@@ -218,6 +222,7 @@ class JarvisHandler:
                 )
             ]
 
+            _LOGGER.debug("Building TTS Info...")
             tts_info = [
                 TtsProgram(
                     name="piper",
@@ -244,6 +249,7 @@ class JarvisHandler:
                 )
             ]
 
+            _LOGGER.debug("Building ASR Info...")
             asr_info = [
                  AsrProgram(
                     name="google_vr",
@@ -270,12 +276,24 @@ class JarvisHandler:
                 )
             ]
             
-            await async_write_event(Info(
-                wake=wake_info,
-                tts=tts_info,
-                asr=asr_info
-            ).event(), self.writer)
-            _LOGGER.debug("Sent Describe Info")
+            _LOGGER.debug("Sending Info event...")
+            try:
+                info_event = Info(
+                    wake=wake_info,
+                    tts=tts_info,
+                    asr=asr_info
+                ).event()
+                await async_write_event(info_event, self.writer)
+                _LOGGER.debug("Sent Describe Info successfully")
+            except Exception as e:
+                _LOGGER.error(f"Failed to send Describe Info: {e}")
+
+        elif Describe.is_type(event.type):
+             _LOGGER.warning(f"Describe.is_type matched but block fell through? re-running logic")
+             # This shouldn't happen if the elif above catches 'describe' string
+             pass
+        else:
+             _LOGGER.debug(f"Unhandled event type: {event.type}")
 
     def process_stt(self):
         try:
