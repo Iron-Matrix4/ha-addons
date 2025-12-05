@@ -35,12 +35,15 @@ class WakeWord:
         
         if self.porcupine is None:
             print("CRITICAL: Failed to initialize Porcupine with any keywords.")
-            sys.exit(1)
-
-        self.frame_length = self.porcupine.frame_length
-        self.sample_rate = self.porcupine.sample_rate
+            print("Jarvis will continue running, but Wake Word detection is DISABLED.")
+            # Do not exit, just allow it to run without wake word
+            self.frame_length = 512 # Fallback
+            self.sample_rate = 16000 # Fallback
+        else:
+            self.frame_length = self.porcupine.frame_length
+            self.sample_rate = self.porcupine.sample_rate
         
-        if use_mic:
+        if use_mic and self.porcupine:
             try:
                 import pyaudio
                 self.pa = pyaudio.PyAudio()
@@ -52,7 +55,7 @@ class WakeWord:
                     frames_per_buffer=self.porcupine.frame_length
                 )
             except Exception as e:
-                print(f"Microphone init failed (expected in Docker if passing stream): {e}")
+                print(f"Microphone init failed: {e}")
                 self.pa = None
                 self.audio_stream = None
         else:
@@ -64,6 +67,9 @@ class WakeWord:
         Processes a single chunk of audio (must be correct length).
         Returns True if wake word detected.
         """
+        if self.porcupine is None:
+            return False
+            
         keyword_index = self.porcupine.process(pcm)
         return keyword_index >= 0
 
