@@ -21,6 +21,10 @@ WORKDIR /app
 # Break system packages to allow pip install
 RUN pip3 install --break-system-packages --no-cache-dir -r requirements.txt
 
+# Reassemble split model parts
+RUN cat /app/piper_models/jarvis-high.onnx.part* > /app/piper_models/jarvis-high.onnx \
+    && rm /app/piper_models/jarvis-high.onnx.part*
+
 # Make run script executable
 RUN chmod a+x run.sh
 
