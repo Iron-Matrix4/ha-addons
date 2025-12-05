@@ -19,12 +19,12 @@ _LOGGER = logging.getLogger(__name__)
 
 # Polyfill for newer Wyoming classes if missing in older lib versions
 try:
-    from wyoming.info import TtsProgram, TtsModel, AsrProgram, AsrModel
+    from wyoming.info import TtsProgram, TtsVoice, AsrProgram, AsrModel
 except ImportError:
     _LOGGER.warning("Using local polyfill for Wyoming TTS/ASR classes")
     
     @dataclass
-    class TtsModel:
+    class TtsVoice:
         name: str
         description: str
         attribution: Attribution
@@ -38,7 +38,7 @@ except ImportError:
         description: str
         attribution: Attribution
         installed: bool
-        models: List[TtsModel]
+        voices: List[TtsVoice]
         version: Optional[str] = None
         
     @dataclass
@@ -228,8 +228,8 @@ class JarvisHandler:
                     ),
                     installed=True,
                     version="1.0",
-                    models=[
-                        TtsModel(
+                    voices=[
+                        TtsVoice(
                             name="jarvis_voice",
                             description="Jarvis Voice",
                             attribution=Attribution(
