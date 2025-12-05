@@ -17,6 +17,8 @@ RUN apt-get update \
 COPY . /app
 WORKDIR /app
 
+ENV PYTHONUNBUFFERED=1
+
 # Install Python requirements
 # Break system packages to allow pip install
 RUN pip3 install --break-system-packages --no-cache-dir -r requirements.txt

@@ -60,8 +60,24 @@ class JarvisHandler:
             _LOGGER.error(f"Failed to initialize WakeWord: {e}")
             self.wake_word = None
             
-        self.mouth = Mouth()
-        self.brain = Brain()
+            self.wake_word = None
+            
+        _LOGGER.debug("Initializing Mouth...")
+        try:
+            self.mouth = Mouth()
+            _LOGGER.debug("Mouth initialized")
+        except Exception as e:
+            _LOGGER.error(f"Failed to initialize Mouth: {e}")
+            raise e
+
+        _LOGGER.debug("Initializing Brain...")
+        try:
+            self.brain = Brain()
+            _LOGGER.debug("Brain initialized")
+        except Exception as e:
+            _LOGGER.error(f"Failed to initialize Brain: {e}")
+            raise e
+
         self.recognizer = sr.Recognizer()
         
         self.state = "WAITING_FOR_WAKE_WORD"
@@ -195,8 +211,14 @@ class JarvisHandler:
         await async_write_event(AudioStop().event(), self.writer)
 
 async def handle_client(reader, writer):
-    handler = JarvisHandler(reader, writer)
-    await handler.run()
+    try:
+        logging.info("New client connected")
+        handler = JarvisHandler(reader, writer)
+        await handler.run()
+    except Exception as e:
+        logging.error(f"Client handler crashed: {e}", exc_info=True)
+    finally:
+        logging.info("Client disconnected")
 
 async def main():
     logging.basicConfig(level=logging.DEBUG)
