@@ -1,5 +1,5 @@
 name: "Jarvis Assistant"
-version: "1.0.25"
+version: "1.0.26"
 slug: "jarvis_assistant"
 description: "A local, private voice assistant using Piper TTS and Porcupine."
 url: "https://github.com/Iron-Matrix4/ha-addons/tree/master/jarvis_assistant"
