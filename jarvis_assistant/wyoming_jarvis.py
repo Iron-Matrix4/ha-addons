@@ -87,9 +87,17 @@ class JarvisHandler:
 
     async def run(self):
         while True:
-            event = await async_read_event(self.reader)
-            if event is None:
+            try:
+                event = await async_read_event(self.reader)
+            except Exception as e:
+                _LOGGER.warning(f"Error reading event: {e}")
                 break
+
+            if event is None:
+                _LOGGER.debug("Event is None (Client disconnected?)")
+                break
+            
+            _LOGGER.debug(f"Received event: {event.type}")
             await self.handle_event(event)
 
     async def handle_event(self, event: Event):
@@ -122,45 +130,45 @@ class JarvisHandler:
                             # Start STT in background
                             self.loop.run_in_executor(None, self.process_stt)
                 else:
-                    # No wake word engine, ignore audio or log warning once
+                    # No wake word engine, ignore audio
                     pass
                 
             elif self.state == "LISTENING_FOR_COMMAND":
                 self.audio_buffer.put_chunk(chunk.audio)
 
         elif Describe.is_type(event.type):
-            wake_info = []
-            if self.wake_word:
-                wake_info = [
-                    WakeProgram(
-                        name="porcupine",
-                        description="Porcupine Wake Word Engine",
-                        attribution=Attribution(
-                            name="Picovoice",
-                            url="https://picovoice.ai/"
-                        ),
-                        installed=True,
-                        version="1.0",
-                        models=[
-                            WakeModel(
-                                name="jarvis",
-                                description="Jarvis",
-                                attribution=Attribution(
-                                    name="Iron-Matrix4",
-                                    url="https://github.com/Iron-Matrix4/jarvis-addon"
-                                ),
-                                installed=True,
-                                languages=["en"],
-                                version="1.0",
-                                phrase="jarvis"
-                            )
-                        ]
-                    )
-                ]
+            # Always advertise Jarvis, even if engine is broken, so HA adds the entity
+            wake_info = [
+                WakeProgram(
+                    name="porcupine",
+                    description="Porcupine Wake Word Engine",
+                    attribution=Attribution(
+                        name="Picovoice",
+                        url="https://picovoice.ai/"
+                    ),
+                    installed=True,
+                    version="1.0",
+                    models=[
+                        WakeModel(
+                            name="jarvis",
+                            description="Jarvis",
+                            attribution=Attribution(
+                                name="Iron-Matrix4",
+                                url="https://github.com/Iron-Matrix4/jarvis-addon"
+                            ),
+                            installed=True,
+                            languages=["en"],
+                            version="1.0",
+                            phrase="jarvis"
+                        )
+                    ]
+                )
+            ]
             
             await async_write_event(Info(
                 wake=wake_info
             ).event(), self.writer)
+            _LOGGER.debug("Sent Describe Info")
 
     def process_stt(self):
         try:
