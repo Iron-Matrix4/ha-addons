@@ -6,7 +6,51 @@ import queue
 import threading
 import struct
 import speech_recognition as sr
-from wyoming.info import Describe, Info, WakeModel, WakeProgram, Attribution, TtsProgram, TtsModel, AsrProgram, AsrModel
+from dataclasses import dataclass, field
+from typing import List, Optional
+from wyoming.info import Describe, Info, WakeModel, WakeProgram, Attribution
+
+# Polyfill for newer Wyoming classes if missing in older lib versions
+try:
+    from wyoming.info import TtsProgram, TtsModel, AsrProgram, AsrModel
+except ImportError:
+    _LOGGER.warning("Using local polyfill for Wyoming TTS/ASR classes")
+    
+    @dataclass
+    class TtsModel:
+        name: str
+        description: str
+        attribution: Attribution
+        installed: bool
+        languages: List[str]
+        version: Optional[str] = None
+
+    @dataclass
+    class TtsProgram:
+        name: str
+        description: str
+        attribution: Attribution
+        installed: bool
+        models: List[TtsModel]
+        version: Optional[str] = None
+        
+    @dataclass
+    class AsrModel:
+        name: str
+        description: str
+        attribution: Attribution
+        installed: bool
+        languages: List[str]
+        version: Optional[str] = None
+
+    @dataclass
+    class AsrProgram:
+        name: str
+        description: str
+        attribution: Attribution
+        installed: bool
+        models: List[AsrModel]
+        version: Optional[str] = None
 
 from wyoming.wake import Detection
 import config
