@@ -10,6 +10,10 @@ from dataclasses import dataclass, field
 from typing import List, Optional
 from wyoming.info import Describe, Info, WakeModel, WakeProgram, Attribution
 
+# Configure logging early
+logging.basicConfig(level=logging.DEBUG)
+_LOGGER = logging.getLogger(__name__)
+
 # Polyfill for newer Wyoming classes if missing in older lib versions
 try:
     from wyoming.info import TtsProgram, TtsModel, AsrProgram, AsrModel
@@ -58,7 +62,7 @@ from wake_word import WakeWord
 from tts_piper import Mouth
 from llm import Brain
 
-_LOGGER = logging.getLogger(__name__)
+
 
 class BufferedAudioSource(sr.AudioSource):
     def __init__(self):
@@ -329,7 +333,6 @@ async def handle_client(reader, writer):
         logging.info("Client disconnected")
 
 async def main():
-    logging.basicConfig(level=logging.DEBUG)
     server = await asyncio.start_server(handle_client, '0.0.0.0', 10200)
     _LOGGER.info("Ready on port 10200")
     async with server:
