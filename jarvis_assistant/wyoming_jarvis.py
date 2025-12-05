@@ -8,6 +8,9 @@ import struct
 import speech_recognition as sr
 from dataclasses import dataclass, field
 from typing import List, Optional
+from wyoming.event import Event, async_read_event, async_write_event
+from wyoming.audio import AudioChunk, AudioStart, AudioStop
+import wyoming
 from wyoming.info import Describe, Info, WakeModel, WakeProgram, Attribution
 
 # Configure logging early
