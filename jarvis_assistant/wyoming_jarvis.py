@@ -8,7 +8,8 @@ import struct
 import speech_recognition as sr
 from wyoming.event import Event, async_read_event, async_write_event
 from wyoming.audio import AudioChunk, AudioStart, AudioStop
-from wyoming.info import Describe, Info, WakeModel, WakeProgram, Attribution, TtsProgram, TtsModel, AsrProgram, AsrModel
+import wyoming
+from wyoming.info import Describe, Info, WakeModel, WakeProgram, Attribution
 
 from wyoming.wake import Detection
 import config
@@ -54,6 +55,11 @@ class JarvisHandler:
                 _LOGGER.info(f"Using Picovoice Key: {key[:8]}...{key[-4:]}")
             else:
                 _LOGGER.error("Picovoice Key is EMPTY!")
+            
+            try:
+                _LOGGER.info(f"Wyoming Library Version: {wyoming.__version__}")
+            except:
+                _LOGGER.info("Wyoming Library Version: unknown")
                 
             self.wake_word = WakeWord(use_mic=False)
         except Exception as e:
@@ -136,7 +142,7 @@ class JarvisHandler:
             elif self.state == "LISTENING_FOR_COMMAND":
                 self.audio_buffer.put_chunk(chunk.audio)
 
-            # Advertise Wake Word, TTS, and ASR so HA sees a complete assistant
+            # Advertise Wake Word only (for now, to prevent crash)
             wake_info = [
                 WakeProgram(
                     name="porcupine",
@@ -163,63 +169,12 @@ class JarvisHandler:
                     ]
                 )
             ]
-
-            tts_info = [
-                TtsProgram(
-                    name="piper",
-                    description="Piper Text-to-Speech",
-                    attribution=Attribution(
-                        name="Rhasspy",
-                        url="https://github.com/rhasspy/wyoming-piper"
-                    ),
-                    installed=True,
-                    version="1.0",
-                    models=[
-                        TtsModel(
-                            name="jarvis_voice",
-                            description="Jarvis Voice",
-                            attribution=Attribution(
-                                name="Iron-Matrix4",
-                                url="https://github.com/Iron-Matrix4/jarvis-addon"
-                            ),
-                            installed=True,
-                            languages=["en"],
-                            version="1.0"
-                        )
-                    ]
-                )
-            ]
-
-            asr_info = [
-                 AsrProgram(
-                    name="google_vr",
-                    description="Google Voice Recognition",
-                    attribution=Attribution(
-                        name="Google",
-                        url="https://cloud.google.com/speech-to-text"
-                    ),
-                    installed=True,
-                    version="1.0",
-                    models=[
-                        AsrModel(
-                            name="google_en",
-                            description="Google English",
-                            attribution=Attribution(
-                                name="Google",
-                                url="https://google.com"
-                            ),
-                            installed=True,
-                            languages=["en"],
-                            version="1.0"
-                        )
-                    ]
-                )
-            ]
             
+            # Send capabilities
             await async_write_event(Info(
                 wake=wake_info,
-                tts=tts_info,
-                asr=asr_info
+                tts=[], # Advertise empty TTS/ASR capability lists to see if HA accepts it
+                asr=[]
             ).event(), self.writer)
             _LOGGER.debug("Sent Describe Info")
 
