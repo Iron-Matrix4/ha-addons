@@ -7,6 +7,10 @@ RUN apt-get update \
     python3-pip \
     python3-venv \
     espeak-ng \
+    build-essential \
+    python3-dev \
+    portaudio19-dev \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy data for add-on

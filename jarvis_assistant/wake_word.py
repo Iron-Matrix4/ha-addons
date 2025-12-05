@@ -5,15 +5,43 @@ import sys
 
 class WakeWord:
     def __init__(self, use_mic=True):
+        self.porcupine = None
+        
+        # Debug info
         try:
-            self.porcupine = pvporcupine.create(
-                access_key=config.PICOVOICE_ACCESS_KEY,
-                keywords=['jarvis']
-            )
-            self.frame_length = self.porcupine.frame_length
-            self.sample_rate = self.porcupine.sample_rate
-            
-            if use_mic:
+            import platform
+            print(f"Platform: {platform.system()} {platform.release()} {platform.machine()}")
+            try:
+                print(f"Picovoice Available Keywords: {list(pvporcupine.KEYWORDS)}")
+            except:
+                pass
+        except:
+            pass
+
+        # Try keywords in order preference
+        attempts = ['jarvis', 'porcupine']
+        
+        for kw in attempts:
+            try:
+                print(f"Attempting to initialize Porcupine with keyword: '{kw}'")
+                self.porcupine = pvporcupine.create(
+                    access_key=config.PICOVOICE_ACCESS_KEY,
+                    keywords=[kw]
+                )
+                print(f"Successfully initialized with keyword: '{kw}'")
+                break
+            except Exception as e:
+                print(f"Failed to init '{kw}': {e}")
+        
+        if self.porcupine is None:
+            print("CRITICAL: Failed to initialize Porcupine with any keywords.")
+            sys.exit(1)
+
+        self.frame_length = self.porcupine.frame_length
+        self.sample_rate = self.porcupine.sample_rate
+        
+        if use_mic:
+            try:
                 import pyaudio
                 self.pa = pyaudio.PyAudio()
                 self.audio_stream = self.pa.open(
@@ -23,13 +51,13 @@ class WakeWord:
                     input=True,
                     frames_per_buffer=self.porcupine.frame_length
                 )
-            else:
+            except Exception as e:
+                print(f"Microphone init failed (expected in Docker if passing stream): {e}")
                 self.pa = None
                 self.audio_stream = None
-                
-        except Exception as e:
-            print(f"Error initializing Porcupine: {e}")
-            raise e
+        else:
+            self.pa = None
+            self.audio_stream = None
 
     def process(self, pcm):
         """
