@@ -26,7 +26,7 @@ else:
 # Configuration
 WAKE_WORD = "jarvis"
 LLM_PROVIDER = "gemini" # or "openai"
-TTS_ENGINE = "piper" # or "pyttsx3", "elevenlabs", "edge", "piper"
+TTS_ENGINE = "edge" # or "pyttsx3", "elevenlabs", "edge", "piper"
 STT_ENGINE = "google" # or "whisper" (future)
 
 # Voice Settings (pyttsx3)
