@@ -1,5 +1,5 @@
 name: "Jarvis AI"
-version: "1.0.5"
+version: "1.0.6"
 slug: "jarvis_ai"
 description: "A local, offline-capable AI voice assistant using Picovoice and LLMs."
 url: "https://github.com/Iron-Matrix4/ha-addons"
@@ -28,8 +28,5 @@ schema:
   stt_engine: list(picovoice, google)
   tts_engine: list(piper, elevenlabs, edge, coqui)
 
-devices:
-  - /dev/snd:/dev/snd:rwm
-privileges:
-  - host_network
-  - audio
+audio: true
+host_network: true
