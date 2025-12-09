@@ -27,7 +27,7 @@ schema:
   wake_word: str
   stt_engine: list(picovoice, google)
   tts_engine: list(piper, elevenlabs, edge, coqui)
-image: "jarvis-ai-{arch}"
+
 devices:
   - /dev/snd:/dev/snd:rwm
 privileges:
