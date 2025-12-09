@@ -1,0 +1,17 @@
+SpeechRecognition
+pyttsx3
+pyaudio
+google-generativeai
+openai
+python-dotenv
+elevenlabs
+edge-tts
+pygame
+# TTS - Disabled due to build issues
+duckduckgo-search
+spotipy
+psutil
+pyperclip
+requests
+pvporcupine
+pvcheetah
