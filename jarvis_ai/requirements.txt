@@ -8,7 +8,7 @@ elevenlabs
 edge-tts
 pygame
 # TTS - Disabled due to build issues
-duckduckgo-search
+ddgs
 spotipy
 psutil
 pyperclip
