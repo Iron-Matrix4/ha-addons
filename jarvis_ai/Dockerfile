@@ -10,6 +10,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     portaudio19-dev \
     libasound2-dev \
+    libasound2-plugins \
+    pulseaudio-utils \
     alsa-utils \
     git \
     && rm -rf /var/lib/apt/lists/*

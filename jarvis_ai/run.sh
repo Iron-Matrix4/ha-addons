@@ -25,10 +25,12 @@ export WAKE_WORD=$(bashio::config 'wake_word')
 export STT_ENGINE=$(bashio::config 'stt_engine')
 export TTS_ENGINE=$(bashio::config 'tts_engine')
 
-# Ensure audio device is available
-if [ ! -e /dev/snd ]; then
-    bashio::log.warning "No sound device found at /dev/snd. Audio features may not work."
-fi
+# Configure PulseAudio for Home Assistant audio
+export PULSE_SERVER="unix:/run/pulse/native"
+export PULSE_RUNTIME_PATH="/run/pulse"
+
+# Log audio configuration
+bashio::log.info "PulseAudio configured: PULSE_SERVER=$PULSE_SERVER"
 
 # Run the Python application
 exec python3 Boot_Jarvis.py
