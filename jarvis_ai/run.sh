@@ -2,6 +2,15 @@
 
 echo "Starting Jarvis AI Add-on..."
 
+# Persist machine-id to prevent Picovoice device limit exhaustion
+if [ ! -f /data/machine-id ]; then
+    echo "No persistent machine-id found. Saving current one."
+    cp /etc/machine-id /data/machine-id
+else
+    echo "Restoring persistent machine-id."
+    cp /data/machine-id /etc/machine-id
+fi
+
 # Export configuration options as environment variables
 export PICOVOICE_ACCESS_KEY=$(bashio::config 'picovoice_access_key')
 export GEMINI_API_KEY=$(bashio::config 'gemini_api_key')
