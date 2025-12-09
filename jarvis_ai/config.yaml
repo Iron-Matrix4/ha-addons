@@ -1,5 +1,5 @@
 name: "Jarvis AI"
-version: "1.0.1"
+version: "1.0.2"
 slug: "jarvis_ai"
 description: "A local, offline-capable AI voice assistant using Picovoice and LLMs."
 url: "https://github.com/Iron-Matrix4/ha-addons"
