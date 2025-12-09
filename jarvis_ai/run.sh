@@ -3,12 +3,17 @@
 echo "Starting Jarvis AI Add-on..."
 
 # Persist machine-id to prevent Picovoice device limit exhaustion
-if [ ! -f /data/machine-id ]; then
-    echo "No persistent machine-id found. Saving current one."
-    cp /etc/machine-id /data/machine-id
-else
+if [ -f /data/machine-id ]; then
     echo "Restoring persistent machine-id."
     cp /data/machine-id /etc/machine-id
+else
+    echo "No persistent machine-id found."
+    if [ ! -f /etc/machine-id ]; then
+        echo "/etc/machine-id not found. Generating a new one."
+        python3 -c 'import uuid; print(uuid.uuid4().hex)' > /etc/machine-id
+    fi
+    echo "Saving machine-id to persistence."
+    cp /etc/machine-id /data/machine-id
 fi
 
 # Export configuration options as environment variables
