@@ -266,10 +266,29 @@ Be conversational and stay in character!
                 if has_function_call and function_results:
                     combined_results = "\n".join(function_results)
                     logger.info(f"Sending {len(function_results)} function results back to model")
-                    response = self.chat.send_message(
-                        f"Function results:\n{combined_results}",
-                        generation_config={"temperature": 0.7, "max_output_tokens": 256}
-                    )
+                    
+                    try:
+                        response = self.chat.send_message(
+                            f"Function results:\n{combined_results}",
+                            generation_config={"temperature": 0.7, "max_output_tokens": 256}
+                        )
+                    except Exception as model_error:
+                        # Handle malformed response errors - retry with simpler format
+                        logger.warning(f"Model error on function result, retrying: {model_error}")
+                        try:
+                            # Reset chat and try with direct instruction
+                            response = self.chat.send_message(
+                                f"Based on these results, provide a natural response: {combined_results}",
+                                generation_config={"temperature": 0.5, "max_output_tokens": 200}
+                            )
+                        except Exception as retry_error:
+                            logger.error(f"Retry also failed: {retry_error}")
+                            # Return a helpful response based on the function results
+                            if "turn_on" in combined_results.lower() or "success" in combined_results.lower():
+                                return "Done, Sir. I've executed those commands for you."
+                            else:
+                                return f"I executed the commands. Results: {combined_results[:200]}"
+                    
                     continue  # Continue loop to check new response
                 
                 # If no function calls, we have text - exit loop
