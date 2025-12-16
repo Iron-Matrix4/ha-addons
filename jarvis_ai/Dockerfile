@@ -32,8 +32,8 @@ RUN chmod +x /run.sh
 # Create data directory for persistent storage
 RUN mkdir -p /data
 
-# Copy GCP credentials for Vertex AI mode
-COPY gcp-credentials.json ./
+# Note: GCP credentials for Vertex AI mode should be provided via Home Assistant options/secrets
+# Users can mount credentials file or provide service account JSON in addon configuration
 
 # Expose Wyoming protocol port and HTTP API port
 EXPOSE 10400 10401

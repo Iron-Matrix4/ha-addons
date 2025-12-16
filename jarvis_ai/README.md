@@ -55,9 +55,21 @@ See [INSTALL.md](INSTALL.md) for detailed installation instructions.
 
 ### Required Settings
 
+**Choose one of the following authentication modes:**
+
+#### AI Studio Mode (Recommended)
+
 | Option | Description |
 |--------|-------------|
-| `gemini_api_key` | Google Gemini API key (required) |
+| `gemini_api_key` | Google Gemini API key from [AI Studio](https://aistudio.google.com/apikey) |
+
+#### Vertex AI Mode (Advanced)
+
+| Option | Description |
+|--------|-------------|
+| `gcp_project_id` | Your GCP Project ID |
+
+> **Note**: For Vertex AI mode, you must also provide GCP service account credentials. Place your `gcp-credentials.json` file in the `/data` directory after the addon is installed, or mount it via Home Assistant configuration.
 
 ### Optional Settings
 
