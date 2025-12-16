@@ -196,6 +196,78 @@ get_current_time_func = FunctionDeclaration(
     }
 )
 
+# Radarr Query
+query_radarr_func = FunctionDeclaration(
+    name="query_radarr",
+    description="Query Radarr for movie library information and system status. Use for questions about movies, downloads, and Radarr status.",
+    parameters={
+        "type": "object",
+        "properties": {
+            "query_type": {
+                "type": "string",
+                "description": "Type of query",
+                "enum": ["status", "stats", "last_downloaded", "recent", "search", "missing"]
+            },
+            "movie_name": {
+                "type": "string",
+                "description": "Movie name (only needed for 'search' query)"
+            }
+        },
+        "required": ["query_type"]
+    }
+)
+
+add_to_radarr_func = FunctionDeclaration(
+    name="add_to_radarr",
+    description="Add a movie to Radarr by name. Will search and add the best match.",
+    parameters={
+        "type": "object",
+        "properties": {
+            "movie_name": {
+                "type": "string",
+                "description": "Name of the movie to add"
+            }
+        },
+        "required": ["movie_name"]
+    }
+)
+
+# Sonarr Query
+query_sonarr_func = FunctionDeclaration(
+    name="query_sonarr",
+    description="Query Sonarr for TV series library information and system status. Use for questions about TV shows, episodes, downloads, and Sonarr status.",
+    parameters={
+        "type": "object",
+        "properties": {
+            "query_type": {
+                "type": "string",
+                "description": "Type of query",
+                "enum": ["status", "stats", "last_downloaded", "recent", "search", "missing"]
+            },
+            "series_name": {
+                "type": "string",
+                "description": "Series name (only needed for 'search' query)"
+            }
+        },
+        "required": ["query_type"]
+    }
+)
+
+add_to_sonarr_func = FunctionDeclaration(
+    name="add_to_sonarr",
+    description="Add a TV series to Sonarr by name. Will search and add the best match.",
+    parameters={
+        "type": "object",
+        "properties": {
+            "series_name": {
+                "type": "string",
+                "description": "Name of the TV series to add"
+            }
+        },
+        "required": ["series_name"]
+    }
+)
+
 # Create the Tool object for Vertex AI
 jarvis_tool = Tool(
     function_declarations=[
@@ -209,5 +281,9 @@ jarvis_tool = Tool(
         save_preference_func,
         get_preference_func,
         get_current_time_func,
+        query_radarr_func,
+        add_to_radarr_func,
+        query_sonarr_func,
+        add_to_sonarr_func,
     ]
 )

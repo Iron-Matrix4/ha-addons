@@ -200,6 +200,10 @@ Be conversational and stay in character!
                     save_preference,
                     get_preference,
                     get_current_time,
+                    query_radarr,
+                    add_to_radarr,
+                    query_sonarr,
+                    add_to_sonarr,
                 )
                 
                 # Map function names to actual functions
@@ -214,6 +218,10 @@ Be conversational and stay in character!
                     "save_preference": save_preference,
                     "get_preference": get_preference,
                     "get_current_time": get_current_time,
+                    "query_radarr": query_radarr,
+                    "add_to_radarr": add_to_radarr,
+                    "query_sonarr": query_sonarr,
+                    "add_to_sonarr": add_to_sonarr,
                 }
                 
                 for i, part in enumerate(parts):

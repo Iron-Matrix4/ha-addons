@@ -1,21 +1,31 @@
-import os
-import subprocess
-import webbrowser
-import ctypes
+"""
+Tool functions for Jarvis Home Assistant Add-on.
+Provides Home Assistant control, Spotify, Radarr, Sonarr, web search, and contextual knowledge.
+"""
 import requests
 import json
-import config
-import spotipy
-import psutil
-import pyperclip
-import threading
 import time
-from ddgs import DDGS
-from spotipy.oauth2 import SpotifyClientCredentials
+import threading
+import logging
+from typing import Optional
+import config_helper as config
 
-# --- Home Assistant Integration ---
+# Spotify support (optional)
+try:
+    import spotipy
+    from spotipy.oauth2 import SpotifyClientCredentials
+    SPOTIFY_AVAILABLE = True
+except ImportError:
+    SPOTIFY_AVAILABLE = False
 
+# No additional imports needed for Google Custom Search (uses requests)
+
+logger = logging.getLogger(__name__)
+
+# Global context for follow-up commands
 _LAST_INTERACTED_ENTITY = None
+
+# ===== HOME ASSISTANT CONTROL =====
 
 def get_last_interacted_entity():
     """
@@ -33,25 +43,22 @@ def control_home_assistant(entity_id: str, command: str = "turn_on", parameter: 
     
     Args:
         entity_id: The ID of the entity (e.g., "light.office", "climate.office").
-        command: The action to perform ("turn_on", "turn_off", "toggle", "set_temperature", "turn_up", "turn_down").
-        parameter: Optional. Parameter for the command (e.g., target temperature).
+        command: The action to perform ("turn_on", "turn_off", "toggle", "set_temperature", "set_hvac_mode", "turn_up", "turn_down").
+        parameter: Optional. Parameter for the command (e.g., target temperature or hvac_mode like "heat", "cool", "auto", "off").
     """
     global _LAST_INTERACTED_ENTITY
     
     if not config.HA_URL or not config.HA_TOKEN:
         return "Error: Home Assistant URL or Token not configured."
 
-    # Step 1: Resolve the entity ID (handles Light/Switch mismatch fallback)
-    # This prevents sending 'light.turn_on' to a missing entity which might yield a false Success
+    # Resolve the entity ID (handles Light/Switch mismatch fallback)
     resolved_id, was_resolved = _resolve_entity(entity_id)
-    entity_id = resolved_id # Update to the real ID
+    entity_id = resolved_id
     domain = entity_id.split(".")[0]
     service = command
 
     # Temperature Helper Logic
     if command in ["turn_up", "turn_down"]:
-        # We need the current state to know what to set it to
-        # Note: get_ha_state calls _resolve_entity internally so it matches
         current_state_str = get_ha_state(entity_id)
         import re
         match = re.search(r"is ([\d\.]+)", current_state_str)
@@ -68,6 +75,24 @@ def control_home_assistant(entity_id: str, command: str = "turn_on", parameter: 
         service = "turn_on"
     elif command in ["off", "stop"]:
         service = "turn_off"
+    elif command == "close":
+        service = "close_cover" if domain == "cover" else "turn_off"
+    elif command == "open":
+        service = "open_cover" if domain == "cover" else "turn_on"
+    elif command == "stop":
+        service = "stop_cover" if domain == "cover" else "turn_off"
+    elif command == "lock":
+        service = "lock"
+    elif command == "unlock":
+        service = "unlock"
+    elif command == "set_brightness":
+        service = "turn_on"  # Use turn_on with brightness parameter
+    elif command == "set_color":
+        service = "turn_on"  # Use turn_on with color parameter
+    elif command in ["play", "pause", "media_play", "media_pause"]:
+        service = f"media_{command.replace('media_', '')}"
+    elif command in ["volume_up", "volume_down", "media_next", "media_previous"]:
+        service = command
     
     url = f"{config.HA_URL}/api/services/{domain}/{service}"
     
@@ -79,18 +104,33 @@ def control_home_assistant(entity_id: str, command: str = "turn_on", parameter: 
     data = {"entity_id": entity_id}
     
     if parameter:
-        # If set_temperature, usually expects 'temperature' key
         if service == "set_temperature":
             data["temperature"] = float(parameter)
-        # Fix: Do NOT send random parameters for turn_on/turn_off
+        elif service == "set_hvac_mode":
+            data["hvac_mode"] = parameter  # heat, cool, auto, off, etc.
+        elif service == "set_cover_position":
+            data["position"] = int(parameter)  # 0-100
+        elif command == "set_brightness":
+            # Brightness can be 0-255 or 0-100 depending on how user specifies
+            brightness = int(parameter)
+            if brightness <= 100:
+                brightness = int(brightness * 2.55)  # Convert percentage to 0-255
+            data["brightness"] = brightness
+        elif command == "set_color":
+            # Parameter should be color name like "red", "blue" or RGB like "255,0,0"
+            if "," in parameter:
+                # RGB format
+                rgb = [int(x.strip()) for x in parameter.split(",")]
+                data["rgb_color"] = rgb
+            else:
+                # Color name
+                data["color_name"] = parameter
         elif command in ["set_value", "set_cover_position"]:
              data["value"] = parameter
     
     try:
         response = requests.post(url, headers=headers, json=data)
         
-        # We still keep the detailed error check just in case resolution failed 
-        # but simpler now since we tried our best upfront.
         if response.status_code in [400, 404, 500] or "entity not found" in response.text.lower():
              return f"Failed to control {entity_id}. Error {response.status_code}: {response.text}"
 
@@ -139,22 +179,16 @@ def _search_ha_entities_raw(query: str):
             # Relevance Scoring
             score = 0
             
-            # 1. Exact Friendly Name Match (Highest priority)
             if query == friendly_name:
                 score = 100
-            # 2. Query Phrase inside Friendly Name (e.g. "Office Light" in "Switch Office Light")
             elif query in friendly_name:
                 score = 80
-            # 3. All tokens in Friendly Name (scrambled but present)
             elif all(token in friendly_name for token in query_tokens):
                 score = 60
-            # 4. Phrase in Entity ID
             elif query in entity_id:
                 score = 40
-            # 5. Tokens in Entity ID
             elif all(token in entity_id for token in query_tokens):
                 score = 20
-            # 6. Fallback: Search text (Already passed filter, so low score)
             elif all(token in search_text for token in query_tokens):
                 score = 10
             
@@ -165,11 +199,10 @@ def _search_ha_entities_raw(query: str):
                     'score': score
                 })
         
-        # Sort by score (descending)
         results.sort(key=lambda x: x['score'], reverse=True)
         return results
     except Exception as e:
-        print(f"Error searching entities: {e}")
+        logger.error(f"Error searching entities: {e}")
         return []
 
 def _resolve_entity(entity_id: str):
@@ -189,14 +222,12 @@ def _resolve_entity(entity_id: str):
     try:
         response = requests.get(url, headers=headers)
         if response.status_code == 200:
-            return entity_id, False # It acts exists
+            return entity_id, False
             
         if response.status_code == 404:
-            # Entity not found, try to be smart and find it
             query_name = entity_id.split(".")[-1].replace("_", " ")
             found_entities = _search_ha_entities_raw(query_name)
             
-            # Smart Selection with Plug Exclusion
             original_domain = entity_id.split(".")[0]
             target_domains = ['light', 'switch', 'input_boolean']
             
@@ -220,7 +251,6 @@ def _resolve_entity(entity_id: str):
 def get_ha_state(entity_id: str):
     """Get the current state of a Home Assistant entity."""
     
-    # Auto-resolve first
     resolved_id, was_resolved = _resolve_entity(entity_id)
     
     if not config.HA_URL or not config.HA_TOKEN:
@@ -237,7 +267,6 @@ def get_ha_state(entity_id: str):
         response.raise_for_status()
         state_data = response.json()
         
-        # Add unit_of_measurement if available for better context
         state_val = state_data['state']
         unit = state_data['attributes'].get('unit_of_measurement', '')
         if unit:
@@ -261,7 +290,6 @@ def search_ha_entities(query: str):
         if not results:
             return f"No entities found matching '{query}'."
         
-        # Format for LLM
         output = ["Found entities:"]
         for res in results[:10]:
             output.append(f"{res['entity_id']} ({res['friendly_name']})")
@@ -270,120 +298,690 @@ def search_ha_entities(query: str):
     except Exception as e:
         return f"Failed to search entities: {e}"
 
-# --- Spotify Control ---
-def play_music(query: str, entity_id: str = "media_player.spotify_luke"):
+# ===== SPOTIFY CONTROL =====
+
+def play_music(query: str, device: str = None, entity_id: str = None):
     """
-    Play music on Spotify.
-    Searches for the song/artist/album on Spotify and plays it on the specified Home Assistant media player.
+    Play music on Spotify using Spotcast.
+    Searches Spotify and plays on the specified device using Spotcast integration.
+    
+    Args:
+        query: Song, artist, or album to search for
+        device: Device name or entity_id to play on (e.g., "Office Display", "media_player.office_display")
+        entity_id: Optional specific entity_id (overrides device name search)
     """
+    if not SPOTIFY_AVAILABLE:
+        return "Error: Spotify library (spotipy) not installed."
+    
     if not config.SPOTIPY_CLIENT_ID or not config.SPOTIPY_CLIENT_SECRET:
         return "Error: Spotify credentials not configured."
         
     try:
-        # Pre-check: Ensure Spotify is active
-        # We check the attributes of the media player in HA.
-        # If 'source_list' is missing, it usually means the device isn't fully active/connected.
-        url_state = f"{config.HA_URL}/api/states/{entity_id}"
-        headers = {
-            "Authorization": f"Bearer {config.HA_TOKEN}",
-            "Content-Type": "application/json",
-        }
-        
-        needs_launch = False
-        try:
-            state_res = requests.get(url_state, headers=headers).json()
-            if 'source_list' not in state_res.get('attributes', {}):
-                needs_launch = True
-                print(f"Spotify entity {entity_id} missing source_list. Launching...")
-        except Exception:
-            needs_launch = True # Assume not ready if check fails
-
-        if needs_launch:
-            # Launch and Kickstart
-            open_application("spotify")
-            time.sleep(8) 
-            print("Sending Media Play Key to wake up session...")
-            media_play_pause()
-            time.sleep(3)
-
-        # 1. Search Spotify
+        # Search Spotify
         sp = spotipy.Spotify(auth_manager=SpotifyClientCredentials(
             client_id=config.SPOTIPY_CLIENT_ID,
             client_secret=config.SPOTIPY_CLIENT_SECRET
         ))
         
-        # Try to find a track first, then album, then artist, then playlist
         results = sp.search(q=query, limit=1, type='track,album,artist,playlist')
         
         uri = None
         found_name = None
-        found_type = None
         
         if results['tracks']['items']:
             item = results['tracks']['items'][0]
             uri = item['uri']
             found_name = f"{item['name']} by {item['artists'][0]['name']}"
-            found_type = "music"
         elif results['albums']['items']:
             item = results['albums']['items'][0]
             uri = item['uri']
-            found_name = item['name']
-            found_type = "album"
+            found_name = f"Album: {item['name']}"
         elif results['artists']['items']:
             item = results['artists']['items'][0]
             uri = item['uri']
-            found_name = item['name']
-            found_type = "music"
+            found_name = f"Artist: {item['name']}"
         elif results['playlists']['items']:
             item = results['playlists']['items'][0]
             uri = item['uri']
-            found_name = item['name']
-            found_type = "playlist"
+            found_name = f"Playlist: {item['name']}"
             
         if not uri:
             return f"Could not find '{query}' on Spotify."
+        
+        # If no device specified, need to ask
+        if not device and not entity_id:
+            # Get available media players
+            headers = {
+                "Authorization": f"Bearer {config.HA_TOKEN}",
+                "Content-Type": "application/json",
+            }
+            entities_url = f"{config.HA_URL}/api/states"
+            response = requests.get(entities_url, headers=headers)
+            response.raise_for_status()
             
-        # 2. Tell Home Assistant to play it
-        print(f"Playing {uri} on {entity_id}")
-        url_play = f"{config.HA_URL}/api/services/media_player/play_media"
-        data = {
-            "entity_id": entity_id,
-            "media_content_id": uri,
-            "media_content_type": found_type
+            media_players = []
+            for entity in response.json():
+                if entity['entity_id'].startswith('media_player.'):
+                    name = entity['attributes'].get('friendly_name', entity['entity_id'])
+                    media_players.append(name)
+            
+            if media_players:
+                devices_list = ', '.join(media_players[:10])  # Limit to 10
+                return f"Found '{found_name}'. Which device? Available: {devices_list}"
+            else:
+                return "No media players found. Please specify a device."
+        
+        # Find the target device entity_id
+        target_entity = entity_id
+        if device and not entity_id:
+            # Search for matching media player
+            headers = {
+                "Authorization": f"Bearer {config.HA_TOKEN}",
+                "Content-Type": "application/json",
+            }
+            entities_url = f"{config.HA_URL}/api/states"
+            response = requests.get(entities_url, headers=headers)
+            response.raise_for_status()
+            
+            device_lower = device.lower()
+            for entity in response.json():
+                if entity['entity_id'].startswith('media_player.'):
+                    entity_id_match = device_lower in entity['entity_id'].lower()
+                    name_match = device_lower in entity['attributes'].get('friendly_name', '').lower()
+                    
+                    if entity_id_match or name_match:
+                        target_entity = entity['entity_id']
+                        break
+            
+            if not target_entity:
+                return f"Could not find device matching '{device}'"
+        
+        # Use Spotcast to play
+        logger.info(f"Playing {uri} on {target_entity} via Spotcast")
+        
+        headers = {
+            "Authorization": f"Bearer {config.HA_TOKEN}",
+            "Content-Type": "application/json",
+        }
+        spotcast_url = f"{config.HA_URL}/api/services/spotcast/start"
+        spotcast_data = {
+            "entity_id": target_entity,
+            "uri": uri,
         }
         
-        # Attempt 1
-        response = requests.post(url_play, headers=headers, json=data)
-        
-        # Double check: if it still failed despite our efforts (500 error or similar)
-        if response.status_code == 500 and not needs_launch:
-             # Retry launch logic one more time if we hadn't already
-             print("Spotify 500 error on playback. Launching fallback...")
-             open_application("spotify")
-             time.sleep(8)
-             media_play_pause()
-             time.sleep(3)
-             response = requests.post(url_play, headers=headers, json=data)
-
-        if response.status_code == 500:
-               return f"Failed to play on {entity_id} (Server Error). Tried launching Spotify but it failed. Please ensure the device is active."
-
+        response = requests.post(spotcast_url, headers=headers, json=spotcast_data)
         response.raise_for_status()
         
-        return f"Playing '{found_name}' on {entity_id}."
+        return f"Playing '{found_name}' on {target_entity.replace('media_player.', '').replace('_', ' ').title()}."
         
+    except requests.exceptions.HTTPError as e:
+        if e.response.status_code == 400:
+            return f"Spotcast error: {e.response.text}. Make sure Spotcast is configured and the device supports Spotify."
+        logger.error(f"Error in play_music: {e}", exc_info=True)
+        return f"Failed to play music: {e}"
     except Exception as e:
+        logger.error(f"Error in play_music: {e}", exc_info=True)
         return f"Failed to play music: {e}"
 
-# --- Advanced Tools ---
 
-def get_weather(city: str = "London"):
+# ===== RADARR INTEGRATION =====
+
+def query_radarr(query_type: str, movie_name: str = None):
     """
-    Get the current weather for a specific city.
-    Uses OpenMeteo API.
+    Query Radarr for information about movies and system status.
+    
+    Args:
+        query_type: Type of query:
+            - "status" - Is Radarr running?
+            - "stats" - Library statistics (total, 4K, missing counts)
+            - "last_downloaded" - Most recently downloaded film
+            - "recent" - Recent downloads/activity
+            - "search" - Search for a movie by name
+            - "missing" - List missing/wanted movies
+        movie_name: Movie name (required for "search")
+    """
+    if not config.RADARR_URL or not config.RADARR_API_KEY:
+        return "Error: Radarr URL or API key not configured."
+    
+    headers = {
+        "X-Api-Key": config.RADARR_API_KEY,
+        "Content-Type": "application/json"
+    }
+    
+    try:
+        if query_type == "status":
+            # Check system status
+            url = f"{config.RADARR_URL}/api/v3/system/status"
+            response = requests.get(url, headers=headers, timeout=5)
+            response.raise_for_status()
+            status = response.json()
+            
+            version = status.get('version', 'Unknown')
+            return f"Radarr is running. Version: {version}"
+        
+        elif query_type == "stats":
+            # Get library statistics
+            url = f"{config.RADARR_URL}/api/v3/movie"
+            response = requests.get(url, headers=headers)
+            response.raise_for_status()
+            movies = response.json()
+            
+            total = len(movies)
+            has_file = sum(1 for m in movies if m.get('hasFile', False))
+            missing = sum(1 for m in movies if m.get('monitored', False) and not m.get('hasFile', False))
+            
+            # Count 4K movies (look for quality profile or file quality)
+            count_4k = 0
+            for movie in movies:
+                if movie.get('hasFile'):
+                    movie_file = movie.get('movieFile', {})
+                    quality = movie_file.get('quality', {}).get('quality', {}).get('name', '')
+                    if '2160' in quality or '4k' in quality.lower() or 'uhd' in quality.lower():
+                        count_4k += 1
+            
+            return f"Radarr Library Stats: {total} movies total, {has_file} downloaded, {missing} missing, approximately {count_4k} in 4K"
+        
+        elif query_type == "last_downloaded":
+            # Get movie history for recent downloads
+            url = f"{config.RADARR_URL}/api/v3/history"
+            params = {"pageSize": 20, "sortKey": "date", "sortDirection": "descending"}
+            response = requests.get(url, headers=headers, params=params)
+            response.raise_for_status()
+            history = response.json()
+            
+            records = history.get('records', [])
+            for record in records:
+                if record.get('eventType') == 'downloadFolderImported':
+                    movie = record.get('movie', {})
+                    title = movie.get('title', 'Unknown')
+                    year = movie.get('year', '')
+                    date = record.get('date', '')[:10]  # Just the date part
+                    quality = record.get('quality', {}).get('quality', {}).get('name', 'Unknown')
+                    return f"Last downloaded: {title} ({year}) on {date} in {quality}"
+            
+            return "No recent downloads found in Radarr history."
+        
+        elif query_type == "recent":
+            # Get recent activity
+            url = f"{config.RADARR_URL}/api/v3/history"
+            params = {"pageSize": 10, "sortKey": "date", "sortDirection": "descending"}
+            response = requests.get(url, headers=headers, params=params)
+            response.raise_for_status()
+            history = response.json()
+            
+            records = history.get('records', [])
+            if not records:
+                return "No recent activity in Radarr."
+            
+            output = ["Recent Radarr Activity:"]
+            for record in records[:5]:
+                movie = record.get('movie', {})
+                title = movie.get('title', 'Unknown')
+                event = record.get('eventType', 'Unknown')
+                date = record.get('date', '')[:10]
+                
+                event_desc = {
+                    'grabbed': 'Started downloading',
+                    'downloadFolderImported': 'Downloaded',
+                    'downloadFailed': 'Failed'
+                }.get(event, event)
+                
+                output.append(f"- {event_desc}: {title} ({date})")
+            
+            return "\n".join(output)
+        
+        elif query_type == "search" and movie_name:
+            # Search for movie on TMDB via Radarr
+            url = f"{config.RADARR_URL}/api/v3/movie/lookup"
+            params = {"term": movie_name}
+            response = requests.get(url, headers=headers, params=params)
+            response.raise_for_status()
+            results = response.json()
+            
+            if not results:
+                return f"No movies found matching '{movie_name}'."
+            
+            output = [f"Found {len(results)} results:"]
+            for movie in results[:5]:
+                title = movie.get('title', 'Unknown')
+                year = movie.get('year', 'Unknown')
+                output.append(f"- {title} ({year})")
+            
+            return "\n".join(output)
+        
+        elif query_type == "missing":
+            url = f"{config.RADARR_URL}/api/v3/wanted/missing"
+            response = requests.get(url, headers=headers, params={"pageSize": 10})
+            response.raise_for_status()
+            result = response.json()
+            
+            records = result.get('records', [])
+            total_missing = result.get('totalRecords', len(records))
+            
+            if not records:
+                return "No missing movies in Radarr."
+            
+            output = [f"Missing movies ({total_missing} total):"]
+            for movie in records[:10]:
+                title = movie.get('title', 'Unknown')
+                year = movie.get('year', 'Unknown')
+                output.append(f"- {title} ({year})")
+            
+            return "\n".join(output)
+        
+        else:
+            return f"Unknown query type: {query_type}. Supported: status, stats, last_downloaded, recent, search, missing"
+    
+    except requests.exceptions.ConnectionError:
+        return "Radarr is not responding. It may be offline or the URL is incorrect."
+    except requests.exceptions.Timeout:
+        return "Radarr connection timed out. It may be slow or unresponsive."
+    except Exception as e:
+        return f"Radarr error: {e}"
+
+
+def add_to_radarr(movie_name: str):
+    """
+    Add a movie to Radarr by name.
+    
+    Args:
+        movie_name: Name of the movie to add
+    """
+    if not config.RADARR_URL or not config.RADARR_API_KEY:
+        return "Error: Radarr URL or API key not configured."
+    
+    headers = {
+        "X-Api-Key": config.RADARR_API_KEY,
+        "Content-Type": "application/json"
+    }
+    
+    try:
+        # Search first
+        url = f"{config.RADARR_URL}/api/v3/movie/lookup"
+        params = {"term": movie_name}
+        response = requests.get(url, headers=headers, params=params)
+        response.raise_for_status()
+        results = response.json()
+        
+        if not results:
+            return f"No movies found matching '{movie_name}'."
+        
+        # Add first result
+        movie = results[0]
+        
+        # Get root folder
+        root_url = f"{config.RADARR_URL}/api/v3/rootfolder"
+        root_response = requests.get(root_url, headers=headers)
+        root_response.raise_for_status()
+        root_folders = root_response.json()
+        
+        if not root_folders:
+            return "Error: No root folder configured in Radarr."
+        
+        # Get quality profile
+        profile_url = f"{config.RADARR_URL}/api/v3/qualityprofile"
+        profile_response = requests.get(profile_url, headers=headers)
+        profile_response.raise_for_status()
+        profiles = profile_response.json()
+        
+        if not profiles:
+            return "Error: No quality profile configured in Radarr."
+        
+        # Add movie
+        add_data = {
+            "title": movie['title'],
+            "tmdbId": movie['tmdbId'],
+            "year": movie['year'],
+            "qualityProfileId": profiles[0]['id'],
+            "rootFolderPath": root_folders[0]['path'],
+            "monitored": True,
+            "addOptions": {
+                "searchForMovie": True
+            }
+        }
+        
+        add_url = f"{config.RADARR_URL}/api/v3/movie"
+        add_response = requests.post(add_url, headers=headers, json=add_data)
+        add_response.raise_for_status()
+        
+        return f"Added '{movie['title']} ({movie['year']})' to Radarr and started searching."
+    
+    except Exception as e:
+        return f"Radarr error: {e}"
+
+
+# Keep legacy function for backwards compatibility
+def control_radarr(action: str, movie_name: str = None):
+    """Legacy function - use query_radarr or add_to_radarr instead."""
+    if action in ["status", "stats", "last_downloaded", "recent", "missing"]:
+        return query_radarr(action, movie_name)
+    elif action == "search":
+        return query_radarr("search", movie_name)
+    elif action == "add":
+        return add_to_radarr(movie_name)
+    else:
+        return query_radarr(action, movie_name)
+
+# ===== SONARR INTEGRATION =====
+
+def query_sonarr(query_type: str, series_name: str = None):
+    """
+    Query Sonarr for information about TV series and system status.
+    
+    Args:
+        query_type: Type of query:
+            - "status" - Is Sonarr running?
+            - "stats" - Library statistics (total series, episodes, missing)
+            - "last_downloaded" - Most recently downloaded episode
+            - "recent" - Recent downloads/activity
+            - "search" - Search for a series by name
+            - "missing" - List missing/wanted episodes
+        series_name: Series name (required for "search")
+    """
+    if not config.SONARR_URL or not config.SONARR_API_KEY:
+        return "Error: Sonarr URL or API key not configured."
+    
+    headers = {
+        "X-Api-Key": config.SONARR_API_KEY,
+        "Content-Type": "application/json"
+    }
+    
+    try:
+        if query_type == "status":
+            # Check system status
+            url = f"{config.SONARR_URL}/api/v3/system/status"
+            response = requests.get(url, headers=headers, timeout=5)
+            response.raise_for_status()
+            status = response.json()
+            
+            version = status.get('version', 'Unknown')
+            return f"Sonarr is running. Version: {version}"
+        
+        elif query_type == "stats":
+            # Get library statistics
+            url = f"{config.SONARR_URL}/api/v3/series"
+            response = requests.get(url, headers=headers)
+            response.raise_for_status()
+            series_list = response.json()
+            
+            total_series = len(series_list)
+            total_episodes = sum(s.get('episodeFileCount', 0) for s in series_list)
+            total_seasons = sum(s.get('seasonCount', 0) for s in series_list)
+            missing = sum(s.get('episodeCount', 0) - s.get('episodeFileCount', 0) for s in series_list if s.get('monitored', False))
+            
+            return f"Sonarr Library Stats: {total_series} TV shows, {total_seasons} seasons, {total_episodes} episodes downloaded, approximately {missing} episodes missing"
+        
+        elif query_type == "last_downloaded":
+            # Get episode history for recent downloads
+            url = f"{config.SONARR_URL}/api/v3/history"
+            params = {"pageSize": 20, "sortKey": "date", "sortDirection": "descending"}
+            response = requests.get(url, headers=headers, params=params)
+            response.raise_for_status()
+            history = response.json()
+            
+            records = history.get('records', [])
+            for record in records:
+                if record.get('eventType') == 'downloadFolderImported':
+                    series = record.get('series', {})
+                    episode = record.get('episode', {})
+                    series_title = series.get('title', 'Unknown')
+                    season = episode.get('seasonNumber', '?')
+                    ep_num = episode.get('episodeNumber', '?')
+                    ep_title = episode.get('title', 'Unknown')
+                    date = record.get('date', '')[:10]
+                    quality = record.get('quality', {}).get('quality', {}).get('name', 'Unknown')
+                    
+                    return f"Last downloaded: {series_title} S{season:02d}E{ep_num:02d} '{ep_title}' on {date} in {quality}"
+            
+            return "No recent downloads found in Sonarr history."
+        
+        elif query_type == "recent":
+            # Get recent activity
+            url = f"{config.SONARR_URL}/api/v3/history"
+            params = {"pageSize": 10, "sortKey": "date", "sortDirection": "descending"}
+            response = requests.get(url, headers=headers, params=params)
+            response.raise_for_status()
+            history = response.json()
+            
+            records = history.get('records', [])
+            if not records:
+                return "No recent activity in Sonarr."
+            
+            output = ["Recent Sonarr Activity:"]
+            for record in records[:5]:
+                series = record.get('series', {})
+                episode = record.get('episode', {})
+                series_title = series.get('title', 'Unknown')
+                season = episode.get('seasonNumber', '?')
+                ep_num = episode.get('episodeNumber', '?')
+                event = record.get('eventType', 'Unknown')
+                date = record.get('date', '')[:10]
+                
+                event_desc = {
+                    'grabbed': 'Started downloading',
+                    'downloadFolderImported': 'Downloaded',
+                    'downloadFailed': 'Failed'
+                }.get(event, event)
+                
+                output.append(f"- {event_desc}: {series_title} S{season:02d}E{ep_num:02d} ({date})")
+            
+            return "\n".join(output)
+        
+        elif query_type == "search" and series_name:
+            url = f"{config.SONARR_URL}/api/v3/series/lookup"
+            params = {"term": series_name}
+            response = requests.get(url, headers=headers, params=params)
+            response.raise_for_status()
+            results = response.json()
+            
+            if not results:
+                return f"No series found matching '{series_name}'."
+            
+            output = [f"Found {len(results)} results:"]
+            for series in results[:5]:
+                title = series.get('title', 'Unknown')
+                year = series.get('year', 'Unknown')
+                output.append(f"- {title} ({year})")
+            
+            return "\n".join(output)
+        
+        elif query_type == "missing":
+            url = f"{config.SONARR_URL}/api/v3/wanted/missing"
+            response = requests.get(url, headers=headers, params={"pageSize": 20})
+            response.raise_for_status()
+            result = response.json()
+            
+            records = result.get('records', [])
+            total_missing = result.get('totalRecords', len(records))
+            
+            if not records:
+                return "No missing episodes in Sonarr."
+            
+            output = [f"Missing episodes ({total_missing} total):"]
+            for ep in records[:10]:
+                series_title = ep.get('series', {}).get('title', 'Unknown')
+                season = ep.get('seasonNumber', '?')
+                episode = ep.get('episodeNumber', '?')
+                title = ep.get('title', 'Unknown')
+                output.append(f"- {series_title} S{season:02d}E{episode:02d}: {title}")
+            
+            return "\n".join(output)
+        
+        else:
+            return f"Unknown query type: {query_type}. Supported: status, stats, last_downloaded, recent, search, missing"
+    
+    except requests.exceptions.ConnectionError:
+        return "Sonarr is not responding. It may be offline or the URL is incorrect."
+    except requests.exceptions.Timeout:
+        return "Sonarr connection timed out. It may be slow or unresponsive."
+    except Exception as e:
+        return f"Sonarr error: {e}"
+
+
+def add_to_sonarr(series_name: str):
+    """
+    Add a TV series to Sonarr by name.
+    
+    Args:
+        series_name: Name of the series to add
+    """
+    if not config.SONARR_URL or not config.SONARR_API_KEY:
+        return "Error: Sonarr URL or API key not configured."
+    
+    headers = {
+        "X-Api-Key": config.SONARR_API_KEY,
+        "Content-Type": "application/json"
+    }
+    
+    try:
+        # Search first
+        url = f"{config.SONARR_URL}/api/v3/series/lookup"
+        params = {"term": series_name}
+        response = requests.get(url, headers=headers, params=params)
+        response.raise_for_status()
+        results = response.json()
+        
+        if not results:
+            return f"No series found matching '{series_name}'."
+        
+        series = results[0]
+        
+        # Get root folder
+        root_url = f"{config.SONARR_URL}/api/v3/rootfolder"
+        root_response = requests.get(root_url, headers=headers)
+        root_response.raise_for_status()
+        root_folders = root_response.json()
+        
+        if not root_folders:
+            return "Error: No root folder configured in Sonarr."
+        
+        # Get quality profile
+        profile_url = f"{config.SONARR_URL}/api/v3/qualityprofile"
+        profile_response = requests.get(profile_url, headers=headers)
+        profile_response.raise_for_status()
+        profiles = profile_response.json()
+        
+        if not profiles:
+            return "Error: No quality profile configured in Sonarr."
+        
+        # Add series
+        add_data = {
+            "title": series['title'],
+            "tvdbId": series.get('tvdbId'),
+            "qualityProfileId": profiles[0]['id'],
+            "rootFolderPath": root_folders[0]['path'],
+            "monitored": True,
+            "addOptions": {
+                "searchForMissingEpisodes": True
+            }
+        }
+        
+        add_url = f"{config.SONARR_URL}/api/v3/series"
+        add_response = requests.post(add_url, headers=headers, json=add_data)
+        add_response.raise_for_status()
+        
+        return f"Added '{series['title']}' to Sonarr and started searching for episodes."
+    
+    except Exception as e:
+        return f"Sonarr error: {e}"
+
+
+# Keep legacy function for backwards compatibility
+def control_sonarr(action: str, series_name: str = None):
+    """Legacy function - use query_sonarr or add_to_sonarr instead."""
+    if action in ["status", "stats", "last_downloaded", "recent", "missing"]:
+        return query_sonarr(action, series_name)
+    elif action == "search":
+        return query_sonarr("search", series_name)
+    elif action == "add":
+        return add_to_sonarr(series_name)
+    elif action == "list_missing":
+        return query_sonarr("missing", series_name)
+    else:
+        return query_sonarr(action, series_name)
+
+# ===== WEB SEARCH & KNOWLEDGE =====
+
+def google_search(query: str):
+    """
+    Perform a web search using Google Custom Search API.
+    Use this to answer general knowledge questions.
+    """
+    if not config.GOOGLE_SEARCH_API_KEY or not config.GOOGLE_SEARCH_ENGINE_ID:
+        return "Error: Google Custom Search not configured. Please add API key and Search Engine ID to add-on configuration."
+    
+    try:
+        url = "https://www.googleapis.com/customsearch/v1"
+        params = {
+            "key": config.GOOGLE_SEARCH_API_KEY,
+            "cx": config.GOOGLE_SEARCH_ENGINE_ID,
+            "q": query,
+            "num": 5  # Number of results (max 10)
+        }
+        
+        response = requests.get(url, params=params, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+        
+        items = data.get('items', [])
+        if not items:
+            return f"No results found for '{query}'."
+        
+        results = ["Top Search Results:"]
+        for item in items:
+            title = item.get('title', 'No Title')
+            snippet = item.get('snippet', 'No description')
+            results.append(f"- {title}: {snippet}")
+        
+        return "\n".join(results)
+    
+    except requests.exceptions.HTTPError as e:
+        if e.response.status_code == 429:
+            return "Search quota exceeded. Google Custom Search free tier is limited to 100 queries/day."
+        else:
+            return f"Google Search API error: {e.response.status_code} - {e.response.text}"
+    except Exception as e:
+        return f"Search failed: {e}"
+
+def get_contextual_answer(entity_id: str, question: str):
+    """
+    Get a contextual answer by combining HA state with web search.
+    
+    Example: "What's my fish tank temperature?"
+    1. Get current temp from HA
+    2. Search for "ideal fish tank temperature"
+    3. Return: "Your tank is 24°C, which is ideal for tropical fish (24-26°C)"
+    
+    Args:
+        entity_id: The HA entity to query (e.g., "sensor.fish_tank_temp")
+        question: Contextual question to search (e.g., "ideal fish tank temperature")
     """
     try:
-        # 1. Geocoding to get lat/long
+        # Get current state from HA (ALWAYS live, never cached!)
+        current_state = get_ha_state(entity_id)
+        
+        # Search web for context
+        search_result = google_search(question)
+        
+        # Return both for AI to synthesize
+        return f"Current State: {current_state}\n\nContext from Web:\n{search_result}\n\nPlease synthesize this information for the user."
+    
+    except Exception as e:
+        return f"Failed to get contextual answer: {e}"
+
+# ===== UTILITY TOOLS =====
+
+def get_weather(city: str = "London", forecast_hours: int = 12):
+    """
+    Get comprehensive weather including current conditions and hourly forecast with precipitation.
+    Uses OpenMeteo API (free, no API key needed).
+    
+    Args:
+        city: City name to get weather for
+        forecast_hours: Number of hours to forecast (default 12)
+    """
+    try:
+        # Geocoding to get lat/long
         geo_url = f"https://geocoding-api.open-meteo.com/v1/search?name={city}&count=1&language=en&format=json"
         geo_res = requests.get(geo_url).json()
         
@@ -394,64 +992,119 @@ def get_weather(city: str = "London"):
         lon = geo_res['results'][0]['longitude']
         name = geo_res['results'][0]['name']
         
-        # 2. Get Weather
-        weather_url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current_weather=true"
+        # Get comprehensive weather including hourly forecast
+        weather_url = (
+            f"https://api.open-meteo.com/v1/forecast?"
+            f"latitude={lat}&longitude={lon}"
+            f"&current_weather=true"
+            f"&hourly=temperature_2m,precipitation_probability,precipitation,rain,weathercode"
+            f"&forecast_days=1"
+            f"&timezone=auto"
+        )
         weather_res = requests.get(weather_url).json()
         
         current = weather_res['current_weather']
         temp = current['temperature']
         wind = current['windspeed']
         
-        return f"Weather in {name}: {temp}°C, Wind: {wind} km/h."
+        # Build response with current conditions
+        response = [f"Weather in {name}:"]
+        response.append(f"Current: {temp}°C, Wind: {wind} km/h")
+        
+        # Analyze hourly forecast for next few hours
+        hourly = weather_res.get('hourly', {})
+        if hourly:
+            times = hourly.get('time', [])
+            precip_prob = hourly.get('precipitation_probability', [])
+            precip_amount = hourly.get('precipitation', [])
+            rain_amount = hourly.get('rain', [])
+            
+            # Check if rain is expected in the forecast period
+            max_rain_prob = max(precip_prob[:forecast_hours]) if precip_prob else 0
+            total_precip = sum(precip_amount[:forecast_hours]) if precip_amount else 0
+            
+            if max_rain_prob > 30 or total_precip > 0:
+                response.append(f"\n⚠️ Rain likely in next {forecast_hours} hours:")
+                response.append(f"Max precipitation probability: {max_rain_prob}%")
+                if total_precip > 0:
+                    response.append(f"Expected rainfall: {total_precip:.1f}mm")
+                response.append("🌂 Recommendation: Bring an umbrella!")
+            else:
+                response.append(f"\n✅ No significant rain expected in next {forecast_hours} hours")
+                response.append("No umbrella needed!")
+        
+        return "\n".join(response)
+        
     except Exception as e:
+        logger.error(f"Weather error: {e}", exc_info=True)
         return f"Failed to get weather: {e}"
 
-def get_system_status():
+def get_travel_time(origin: str, destination: str, mode: str = "driving"):
     """
-    Get current system status (CPU and RAM usage).
+    Get travel time between two locations with current traffic conditions.
+    Uses Google Maps Distance Matrix API.
+    
+    Args:
+        origin: Starting location (address or place name)
+        destination: Destination (address or place name)
+        mode: Travel mode - "driving", "walking", "bicycling", "transit"
     """
+    if not config.GOOGLE_MAPS_API_KEY:
+        return "Error: Google Maps API key not configured. Add google_maps_api_key to add-on configuration."
+    
     try:
-        cpu = psutil.cpu_percent(interval=1)
-        memory = psutil.virtual_memory()
-        return f"CPU Usage: {cpu}%\nRAM Usage: {memory.percent}% ({round(memory.used/1024/1024/1024, 1)}GB used of {round(memory.total/1024/1024/1024, 1)}GB)"
-    except Exception as e:
-        return f"Failed to get system status: {e}"
-
-def google_search(query: str):
-    """
-    Perform a web search (using DuckDuckGo) and return the top results.
-    """
-    try:
-        results = []
-        with DDGS() as ddgs:
-            # max_results was renamed/changed in newer versions, usually it's just 'max_results' or 'limit'
-            # The library changes often. standardizing on .text() with max_results
-            ddg_results = list(ddgs.text(query, max_results=6))
-            
-        for result in ddg_results:
-            title = result.get('title', 'No Title')
-            body = result.get('body', result.get('href', ''))
-            results.append(f"- {title}: {body}")
+        url = "https://maps.googleapis.com/maps/api/distancematrix/json"
+        params = {
+            "origins": origin,
+            "destinations": destination,
+            "mode": mode,
+            "departure_time": "now",  # Get current traffic
+            "key": config.GOOGLE_MAPS_API_KEY
+        }
         
-        if not results:
-            return "No results found."
-            
-        return "Top Search Results:\n" + "\n".join(results)
+        response = requests.get(url, params=params)
+        response.raise_for_status()
+        data = response.json()
+        
+        if data['status'] != 'OK':
+            return f"Maps API error: {data.get('error_message', data['status'])}"
+        
+        if not data['rows'] or not data['rows'][0]['elements']:
+            return "Could not calculate route between these locations."
+        
+        element = data['rows'][0]['elements'][0]
+        
+        if element['status'] != 'OK':
+            return f"Route not found: {element.get('status')}"
+        
+        duration = element['duration']['text']
+        distance = element['distance']['text']
+        
+        # Check if there's traffic data (duration_in_traffic)
+        if 'duration_in_traffic' in element:
+            duration_traffic = element['duration_in_traffic']['text']
+            return f"Travel from {origin} to {destination} ({mode}):\nDistance: {distance}\nNormal time: {duration}\nCurrent traffic: {duration_traffic}"
+        else:
+            return f"Travel from {origin} to {destination} ({mode}):\nDistance: {distance}\nEstimated time: {duration}"
+    
+    except requests.exceptions.HTTPError as e:
+        if e.response.status_code == 403:
+            return "Google Maps API error: Check that Distance Matrix API is enabled and API key is valid."
+        return f"Maps API error: {e.response.status_code} - {e.response.text}"
     except Exception as e:
-        return f"Search failed: {e}"
+        logger.error(f"Travel time error: {e}", exc_info=True)
+        return f"Failed to get travel time: {e}"
+
 
 def set_timer(seconds: int):
     """
     Set a timer for a specific number of seconds.
-    The timer runs in the background and will alert when finished.
+    Note: This runs in background. Timer completion notification depends on TTS integration.
     """
     def timer_thread():
         time.sleep(seconds)
-        # We need a way to speak asynchronously. 
-        # For now, we'll just print, but ideally this would trigger the TTS engine.
-        # Since TTS is in main loop, we might need a callback or just print for now.
-        print(f"\n[TIMER] Timer for {seconds} seconds finished!\n")
-        # TODO: Integrate with TTS for audible alarm
+        logger.info(f"[TIMER] Timer for {seconds} seconds finished!")
+        # TODO: Trigger notification or TTS callback
         
     t = threading.Thread(target=timer_thread)
     t.daemon = True
@@ -459,143 +1112,129 @@ def set_timer(seconds: int):
     
     return f"Timer set for {seconds} seconds."
 
-def read_clipboard():
-    """Read the current text from the clipboard."""
-    return pyperclip.paste()
 
-def write_to_clipboard(text: str):
-    """Write text to the clipboard."""
-    pyperclip.copy(text)
-    return "Copied to clipboard."
+# ===== MEMORY FUNCTIONS =====
 
-# --- System Control ---
-def shutdown_pc():
-    """Shut down the computer immediately."""
-    os.system("shutdown /s /t 1")
-    return "Shutting down PC..."
+# Import memory singleton
+from memory import Memory
+_memory_instance = None
 
-def restart_pc():
-    """Restart the computer immediately."""
-    os.system("shutdown /r /t 1")
-    return "Restarting PC..."
+def _get_memory():
+    """Get or create memory instance."""
+    global _memory_instance
+    if _memory_instance is None:
+        _memory_instance = Memory()
+    return _memory_instance
 
-def lock_pc():
-    """Lock the Windows workstation."""
-    os.system("rundll32.exe user32.dll,LockWorkStation")
-    return "PC Locked."
-
-def sleep_pc():
-    """Put the computer to sleep."""
-    os.system("rundll32.exe powrprof.dll,SetSuspendState 0,1,0")
-    return "PC going to sleep..."
-
-# --- Volume Control ---
-def set_volume_mute(mute: bool = True):
-    """Mute or unmute the system volume."""
-    APPCOMMAND_VOLUME_MUTE = 0x80000
-    WM_APPCOMMAND = 0x319
-    ctypes.windll.user32.SendMessageW(0xffff, WM_APPCOMMAND, 0, APPCOMMAND_VOLUME_MUTE)
-    return "Volume mute toggled."
-
-def volume_up():
-    """Increase system volume."""
-    APPCOMMAND_VOLUME_UP = 0xA0000
-    WM_APPCOMMAND = 0x319
-    ctypes.windll.user32.SendMessageW(0xffff, WM_APPCOMMAND, 0, APPCOMMAND_VOLUME_UP)
-    return "Volume increased."
-
-def volume_down():
-    """Decrease system volume."""
-    APPCOMMAND_VOLUME_DOWN = 0x90000
-    WM_APPCOMMAND = 0x319
-    ctypes.windll.user32.SendMessageW(0xffff, WM_APPCOMMAND, 0, APPCOMMAND_VOLUME_DOWN)
-    return "Volume decreased."
-
-# --- App Control ---
-def open_application(app_name: str):
+def save_preference(name: str, value: str):
     """
-    Open a specific application by name.
-    Supported: calculator, notepad, chrome, spotify, code (vscode), explorer, cmd.
-    """
-    apps = {
-        "calculator": "calc.exe",
-        "notepad": "notepad.exe",
-        "chrome": "chrome",
-        "spotify": os.path.expanduser('~\\AppData\\Local\\Microsoft\\WindowsApps\\Spotify.exe'), # Fixed path for Windows Store version
-        "code": "code",
-        "vscode": "code",
-        "explorer": "explorer.exe",
-        "cmd": "cmd.exe",
-        "terminal": "wt.exe"
-    }
+    Save a user preference or piece of information to memory.
+    Use this when the user asks Jarvis to remember something.
     
-    target = apps.get(app_name.lower())
-    if target:
-        try:
-            subprocess.Popen(target, shell=True)
-            return f"Opened {app_name}"
-        except Exception as e:
-            return f"Failed to open {app_name}: {e}"
-    else:
-        try:
-            os.startfile(app_name)
-            return f"Attempted to launch {app_name}"
-        except Exception:
-            return f"Application '{app_name}' not found."
+    Args:
+        name: The preference name/key (e.g., "favorite_color", "phone_number", "wife_name")
+        value: The value to remember
+        
+    Returns:
+        Confirmation message
+    """
+    try:
+        memory = _get_memory()
+        memory.set_preference(name, value)
+        return f"Preference saved: {name} = {value}"
+    except Exception as e:
+        logger.error(f"Error saving preference: {e}", exc_info=True)
+        return f"Failed to save preference: {e}"
 
-def open_url(url: str):
-    """Open a website in the default browser."""
-    if not url.startswith("http"):
-        url = "https://" + url
-    webbrowser.open(url)
-    return f"Opened {url}"
+def get_preference(name: str):
+    """
+    Retrieve a saved user preference from memory.
+    Use this when the user asks what Jarvis remembers.
+    
+    Args:
+        name: The preference name/key to retrieve
+        
+    Returns:
+        The saved value, or message if not found
+    """
+    try:
+        memory = _get_memory()
+        value = memory.get_preference(name)
+        if value is not None:
+            return f"{name}: {value}"
+        else:
+            return f"No preference found for '{name}'"
+    except Exception as e:
+        logger.error(f"Error getting preference: {e}", exc_info=True)
+        return f"Failed to get preference: {e}"
 
-# --- Media Control ---
-def media_play_pause():
-    """Toggle Play/Pause on active media."""
-    APPCOMMAND_MEDIA_PLAY_PAUSE = 0xE0000
-    WM_APPCOMMAND = 0x319
-    ctypes.windll.user32.SendMessageW(0xffff, WM_APPCOMMAND, 0, APPCOMMAND_MEDIA_PLAY_PAUSE)
-    return "Media Play/Pause toggled."
+def list_all_preferences():
+    """
+    List all saved preferences.
+    Use this when the user asks what Jarvis remembers.
+    
+    Returns:
+        Dictionary of all saved preferences
+    """
+    try:
+        memory = _get_memory()
+        prefs = memory.get_all_preferences()
+        if prefs:
+            return f"Saved preferences: {prefs}"
+        else:
+            return "No preferences saved yet"
+    except Exception as e:
+        logger.error(f"Error listing preferences: {e}", exc_info=True)
+        return f"Failed to list preferences: {e}"
 
-def media_next():
-    """Skip to next track."""
-    APPCOMMAND_MEDIA_NEXTTRACK = 0xB0000
-    WM_APPCOMMAND = 0x319
-    ctypes.windll.user32.SendMessageW(0xffff, WM_APPCOMMAND, 0, APPCOMMAND_MEDIA_NEXTTRACK)
-    return "Skipped to next track."
+def get_current_time():
+    """
+    Get the current date and time.
+    Use this when the user asks about the current date, time, or needs calculations involving dates.
+    
+    Returns:
+        Current date and time with timezone
+    """
+    from datetime import datetime
+    import pytz
+    
+    # Get current time in UTC and local timezone
+    now_utc = datetime.now(pytz.UTC)
+    now_local = datetime.now()
+    
+    return f"Current date and time: {now_local.strftime('%A, %B %d, %Y at %I:%M %p')} (UTC: {now_utc.strftime('%Y-%m-%d %H:%M:%S %Z')})"
 
-def media_prev():
-    """Skip to previous track."""
-    APPCOMMAND_MEDIA_PREVIOUSTRACK = 0xC0000
-    WM_APPCOMMAND = 0x319
-    ctypes.windll.user32.SendMessageW(0xffff, WM_APPCOMMAND, 0, APPCOMMAND_MEDIA_PREVIOUSTRACK)
-    return "Skipped to previous track."
+# ===== DEPRECATED/LEGACY =====
 
-# --- Tool Registry ---
 def get_tools():
-    return [
+    """Return list of all available tools for Gemini function calling."""
+    tools = [
+        # Home Assistant
         get_ha_state,
         search_ha_entities,
         control_home_assistant,
         get_last_interacted_entity,
+        
+        # Media
         play_music,
-        get_weather,
-        get_system_status,
+        
+        # Media Management
+        control_radarr,
+        control_sonarr,
+        
+        # Knowledge & Search
         google_search,
+        get_contextual_answer,
+        get_weather,
+        get_travel_time,
+        
+        # Memory
+        save_preference,
+        get_preference,
+        list_all_preferences,
+        
+        # Utility
+        get_current_time,
         set_timer,
-        read_clipboard,
-        write_to_clipboard,
-        shutdown_pc,
-        restart_pc,
-        lock_pc,
-        sleep_pc,
-        set_volume_mute,
-        volume_up,
-        volume_down,
-        open_application,
-        open_url,
-        media_play_pause,
-        media_next,
-        media_prev
     ]
+    return tools
