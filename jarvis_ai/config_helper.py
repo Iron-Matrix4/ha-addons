@@ -1,0 +1,45 @@
+"""
+Configuration helper for Jarvis Add-on.
+Loads configuration from environment variables set by Home Assistant.
+"""
+import os
+import logging
+
+logger = logging.getLogger(__name__)
+
+# Debug logging
+logger.info(f"Loading config from environment...")
+logger.info(f"GEMINI_API_KEY present: {bool(os.getenv('GEMINI_API_KEY'))}")
+
+# ===== API KEYS =====
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash-lite")
+GCP_PROJECT_ID = os.getenv("GCP_PROJECT_ID", "")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+
+# ===== HOME ASSISTANT =====
+# These are auto-provided by HA to add-ons
+HA_URL = os.getenv("HA_URL", "http://supervisor/core")
+HA_TOKEN = os.getenv("SUPERVISOR_TOKEN", "")
+
+# ===== SPOTIFY =====
+SPOTIPY_CLIENT_ID = os.getenv("SPOTIPY_CLIENT_ID", "")
+SPOTIPY_CLIENT_SECRET = os.getenv("SPOTIPY_CLIENT_SECRET", "")
+
+# ===== RADARR =====
+RADARR_URL = os.getenv("RADARR_URL", "")
+RADARR_API_KEY = os.getenv("RADARR_API_KEY", "")
+
+# ===== SONARR =====
+SONARR_URL = os.getenv("SONARR_URL", "")
+SONARR_API_KEY = os.getenv("SONARR_API_KEY", "")
+
+# ===== GOOGLE CUSTOM SEARCH =====
+GOOGLE_SEARCH_API_KEY = os.getenv("GOOGLE_SEARCH_API_KEY", "")
+GOOGLE_SEARCH_ENGINE_ID = os.getenv("GOOGLE_SEARCH_ENGINE_ID", "")
+
+# ===== GOOGLE MAPS =====
+GOOGLE_MAPS_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY", "")
+
+# ===== LLM CONFIGURATION =====
+LLM_PROVIDER = "gemini"  # Always use Gemini for now
