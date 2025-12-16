@@ -1,33 +1,42 @@
-ARG BUILD_FROM
-FROM $BUILD_FROM
+# Use Debian-based Python image
+ARG BUILD_FROM=ghcr.io/home-assistant/amd64-base-python:3.11
+FROM ${BUILD_FROM}
 
-# Install system dependencies for Audio and Python
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 \
-    python3-pip \
-    python3-venv \
+# Install system dependencies using apt-get (Debian)
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    gcc \
     python3-dev \
-    build-essential \
-    portaudio19-dev \
-    libasound2-dev \
-    libasound2-plugins \
-    pulseaudio-utils \
-    alsa-utils \
-    git \
-    && rm -rf /var/lib/apt/lists/*
+    python3-pip \
+    build-essential && \
+    rm -rf /var/lib/apt/lists/*
 
 # Set working directory
 WORKDIR /app
 
-# Copy requirements and install
+# Copy requirements first for better caching
 COPY requirements.txt .
-RUN pip3 install --no-cache-dir --break-system-packages -r requirements.txt
 
-# Copy all application files
-COPY . /app
+# Install Python dependencies
+RUN python3 -m pip install --no-cache-dir --break-system-packages -r requirements.txt
 
-# Copy run script and make executable
-COPY run.sh /run.sh
-RUN chmod a+x /run.sh
+# Copy application files
+COPY *.py ./
 
-CMD [ "/run.sh" ]
+# Copy run script
+COPY run.sh /
+
+# Make run script executable
+RUN chmod +x /run.sh
+
+# Create data directory for persistent storage
+RUN mkdir -p /data
+
+# Copy GCP credentials for Vertex AI mode
+COPY gcp-credentials.json ./
+
+# Expose Wyoming protocol port and HTTP API port
+EXPOSE 10400 10401
+
+# Run via the startup script (which sets environment variables)
+CMD ["/run.sh"]

@@ -1,7 +1,0 @@
-SpeechRecognition
-wyoming>=1.4.0
-google-generativeai
-openai
-python-dotenv
-pvporcupine
-piper-tts

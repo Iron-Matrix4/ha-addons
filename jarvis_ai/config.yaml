@@ -1,32 +1,56 @@
-name: "Jarvis AI"
-version: "1.0.7"
+name: "Jarvis AI Conversation Agent"
+description: "J.A.R.V.I.S. - Just A Rather Very Intelligent System. AI conversation agent powered by Gemini for Home Assistant voice pipeline."
+version: "1.0.0"
 slug: "jarvis_ai"
-description: "A local, offline-capable AI voice assistant using Picovoice and LLMs."
-url: "https://github.com/Iron-Matrix4/ha-addons"
-startup: application
-arch:
-  - aarch64
-  - amd64
 init: false
-map:
-  - config:rw
-  - share:rw
+arch:
+  - amd64
+  - aarch64
+  - armv7
+ports:
+  10400/tcp: 10400
+  10401/tcp: 10401
+ports_description:
+  10400/tcp: Wyoming protocol port
+  10401/tcp: HTTP API port for custom integration
+homeassistant_api: true
+hassio_api: true
+hassio_role: default
 options:
-  picovoice_access_key: ""
   gemini_api_key: ""
-  openai_api_key: ""
-  elevenlabs_api_key: ""
-  wake_word: "jarvis"
-  stt_engine: "picovoice"
-  tts_engine: "piper"
+  gemini_model: "gemini-2.5-flash-lite"
+  gcp_project_id: ""
+  google_search_api_key: ""
+  google_search_engine_id: ""
+  google_maps_api_key: ""
+  spotify_client_id: ""
+  spotify_client_secret: ""
+  radarr_url: ""
+  radarr_api_key: ""
+  sonarr_url: ""
+  sonarr_api_key: ""
+  qbittorrent_url: ""
+  qbittorrent_username: ""
+  qbittorrent_password: ""
+  prowlarr_url: ""
+  prowlarr_api_key: ""
+  unifi_wan_sensor: "sensor.unifi_gateway_wan_ip"
 schema:
-  picovoice_access_key: str
-  gemini_api_key: str?
-  openai_api_key: str?
-  elevenlabs_api_key: str?
-  wake_word: str
-  stt_engine: list(picovoice, google)
-  tts_engine: list(piper, elevenlabs, edge, coqui)
-
-audio: true
-host_network: true
+  gemini_api_key: str
+  gemini_model: list(gemini-2.5-flash-lite|gemini-2.5-flash|gemini-2.5-flash-tts|gemma-3-12b|gemma-3-1b|gemma-3-27b|gemma-3-2b|gemma-3-4b)?
+  gcp_project_id: str?
+  google_search_api_key: str?
+  google_search_engine_id: str?
+  google_maps_api_key: str?
+  spotify_client_id: str?
+  spotify_client_secret: str?
+  radarr_url: str?
+  radarr_api_key: str?
+  sonarr_url: str?
+  sonarr_api_key: str?
+  qbittorrent_url: str?
+  qbittorrent_username: str?
+  qbittorrent_password: password?
+  prowlarr_url: str?
+  prowlarr_api_key: str?
+  unifi_wan_sensor: str?

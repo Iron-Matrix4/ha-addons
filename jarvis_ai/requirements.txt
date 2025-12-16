@@ -1,17 +1,12 @@
-SpeechRecognition
-pyttsx3
-pyaudio
-google-generativeai
-openai
-python-dotenv
-elevenlabs
-edge-tts
-pygame
-# TTS - Disabled due to build issues
-ddgs
-spotipy
-psutil
-pyperclip
-requests
-pvporcupine
-pvcheetah
+# Core dependencies
+aiohttp>=3.8.0
+wyoming>=1.5.0
+
+# Google Vertex AI (replaces google-generativeai)
+google-cloud-aiplatform>=1.38.0
+
+# Music
+spotipy>=2.23.0
+
+# Database
+requests>=2.31.0

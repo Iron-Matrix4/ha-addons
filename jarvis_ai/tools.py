@@ -900,7 +900,297 @@ def control_sonarr(action: str, series_name: str = None):
     else:
         return query_sonarr(action, series_name)
 
-# ===== WEB SEARCH & KNOWLEDGE =====
+# ===== QBITTORRENT INTEGRATION =====
+
+def query_qbittorrent(query_type: str):
+    """
+    Query qBittorrent for torrent status and download information.
+    
+    Args:
+        query_type: Type of query:
+            - "status" - Is qBittorrent running?
+            - "stats" - Torrent counts (downloading, seeding, paused)
+            - "speed" - Current download/upload speed
+            - "downloading" - What's actively downloading?
+            - "completed" - Recently completed torrents
+    """
+    if not config.QBITTORRENT_URL:
+        return "Error: qBittorrent URL not configured."
+    
+    try:
+        # Login if credentials provided
+        session = requests.Session()
+        if config.QBITTORRENT_USERNAME and config.QBITTORRENT_PASSWORD:
+            login_url = f"{config.QBITTORRENT_URL}/api/v2/auth/login"
+            login_data = {
+                "username": config.QBITTORRENT_USERNAME,
+                "password": config.QBITTORRENT_PASSWORD
+            }
+            login_response = session.post(login_url, data=login_data, timeout=5)
+            if "Fails" in login_response.text or login_response.status_code != 200:
+                return "Error: qBittorrent authentication failed."
+        
+        if query_type == "status":
+            # Check if qBittorrent is responding
+            url = f"{config.QBITTORRENT_URL}/api/v2/app/version"
+            response = session.get(url, timeout=5)
+            response.raise_for_status()
+            version = response.text
+            return f"qBittorrent is running. Version: {version}"
+        
+        elif query_type == "stats":
+            # Get torrent counts
+            url = f"{config.QBITTORRENT_URL}/api/v2/torrents/info"
+            response = session.get(url, timeout=10)
+            response.raise_for_status()
+            torrents = response.json()
+            
+            downloading = sum(1 for t in torrents if t['state'] in ['downloading', 'stalledDL', 'metaDL', 'forcedDL'])
+            seeding = sum(1 for t in torrents if t['state'] in ['uploading', 'stalledUP', 'forcedUP'])
+            paused = sum(1 for t in torrents if 'paused' in t['state'].lower())
+            total = len(torrents)
+            
+            return f"qBittorrent Stats: {total} torrents total, {downloading} downloading, {seeding} seeding, {paused} paused"
+        
+        elif query_type == "speed":
+            # Get transfer info
+            url = f"{config.QBITTORRENT_URL}/api/v2/transfer/info"
+            response = session.get(url, timeout=5)
+            response.raise_for_status()
+            info = response.json()
+            
+            dl_speed = info.get('dl_info_speed', 0) / 1024 / 1024  # Convert to MB/s
+            up_speed = info.get('up_info_speed', 0) / 1024 / 1024
+            
+            return f"qBittorrent Speed: ↓ {dl_speed:.1f} MB/s, ↑ {up_speed:.1f} MB/s"
+        
+        elif query_type == "downloading":
+            # Get active downloads
+            url = f"{config.QBITTORRENT_URL}/api/v2/torrents/info"
+            params = {"filter": "downloading"}
+            response = session.get(url, params=params, timeout=10)
+            response.raise_for_status()
+            torrents = response.json()
+            
+            if not torrents:
+                return "No torrents currently downloading."
+            
+            output = [f"Downloading ({len(torrents)} torrents):"]
+            for t in torrents[:5]:
+                name = t.get('name', 'Unknown')[:50]
+                progress = t.get('progress', 0) * 100
+                eta = t.get('eta', 0)
+                
+                if eta > 0 and eta < 86400 * 30:  # Less than 30 days
+                    hours, remainder = divmod(eta, 3600)
+                    minutes = remainder // 60
+                    eta_str = f"{int(hours)}h {int(minutes)}m"
+                else:
+                    eta_str = "unknown"
+                
+                output.append(f"- {name}: {progress:.0f}% (ETA: {eta_str})")
+            
+            return "\n".join(output)
+        
+        elif query_type == "completed":
+            # Get recent completed
+            url = f"{config.QBITTORRENT_URL}/api/v2/torrents/info"
+            params = {"filter": "completed", "sort": "completion_on", "reverse": "true"}
+            response = session.get(url, params=params, timeout=10)
+            response.raise_for_status()
+            torrents = response.json()
+            
+            if not torrents:
+                return "No completed torrents found."
+            
+            output = ["Recently Completed:"]
+            for t in torrents[:5]:
+                name = t.get('name', 'Unknown')[:50]
+                size = t.get('size', 0) / 1024 / 1024 / 1024  # GB
+                output.append(f"- {name} ({size:.1f} GB)")
+            
+            return "\n".join(output)
+        
+        else:
+            return f"Unknown query type: {query_type}. Supported: status, stats, speed, downloading, completed"
+    
+    except requests.exceptions.ConnectionError:
+        return "qBittorrent is not responding. It may be offline or the URL is incorrect."
+    except requests.exceptions.Timeout:
+        return "qBittorrent connection timed out."
+    except Exception as e:
+        return f"qBittorrent error: {e}"
+
+
+# ===== PROWLARR INTEGRATION =====
+
+def query_prowlarr(query_type: str):
+    """
+    Query Prowlarr for indexer status and information.
+    
+    Args:
+        query_type: Type of query:
+            - "status" - Is Prowlarr running?
+            - "stats" - Indexer counts (total, working, failing)
+            - "indexers" - List indexer status
+    """
+    if not config.PROWLARR_URL or not config.PROWLARR_API_KEY:
+        return "Error: Prowlarr URL or API key not configured."
+    
+    headers = {
+        "X-Api-Key": config.PROWLARR_API_KEY,
+        "Content-Type": "application/json"
+    }
+    
+    try:
+        if query_type == "status":
+            url = f"{config.PROWLARR_URL}/api/v1/system/status"
+            response = requests.get(url, headers=headers, timeout=5)
+            response.raise_for_status()
+            status = response.json()
+            
+            version = status.get('version', 'Unknown')
+            return f"Prowlarr is running. Version: {version}"
+        
+        elif query_type in ["stats", "indexers"]:
+            url = f"{config.PROWLARR_URL}/api/v1/indexer"
+            response = requests.get(url, headers=headers, timeout=10)
+            response.raise_for_status()
+            indexers = response.json()
+            
+            total = len(indexers)
+            enabled = sum(1 for i in indexers if i.get('enable', False))
+            
+            if query_type == "stats":
+                return f"Prowlarr Stats: {total} indexers configured, {enabled} enabled"
+            
+            else:  # indexers
+                if not indexers:
+                    return "No indexers configured in Prowlarr."
+                
+                output = [f"Indexers ({total} total):"]
+                for idx in indexers[:10]:
+                    name = idx.get('name', 'Unknown')
+                    enabled_status = "✓" if idx.get('enable', False) else "✗"
+                    output.append(f"- {enabled_status} {name}")
+                
+                return "\n".join(output)
+        
+        else:
+            return f"Unknown query type: {query_type}. Supported: status, stats, indexers"
+    
+    except requests.exceptions.ConnectionError:
+        return "Prowlarr is not responding. It may be offline or the URL is incorrect."
+    except requests.exceptions.Timeout:
+        return "Prowlarr connection timed out."
+    except Exception as e:
+        return f"Prowlarr error: {e}"
+
+
+# ===== VPN STATUS CHECK =====
+
+def check_vpn_status():
+    """
+    Check if VPN is connected on the download VM by verifying qBittorrent's connectivity.
+    Compares qBittorrent's external IP against home WAN IP from UniFi sensor.
+    """
+    try:
+        # First, try to get external IP through qBittorrent's host (the VM with VPN)
+        vm_ip = None
+        qbit_status = "unknown"
+        
+        if config.QBITTORRENT_URL:
+            try:
+                # Try to login and check qBit status
+                session = requests.Session()
+                if config.QBITTORRENT_USERNAME and config.QBITTORRENT_PASSWORD:
+                    login_url = f"{config.QBITTORRENT_URL}/api/v2/auth/login"
+                    login_data = {
+                        "username": config.QBITTORRENT_USERNAME,
+                        "password": config.QBITTORRENT_PASSWORD
+                    }
+                    session.post(login_url, data=login_data, timeout=5)
+                
+                # Check if qBit is connected and can download
+                transfer_url = f"{config.QBITTORRENT_URL}/api/v2/transfer/info"
+                transfer_response = session.get(transfer_url, timeout=5)
+                
+                if transfer_response.status_code == 200:
+                    transfer_info = transfer_response.json()
+                    connection_status = transfer_info.get('connection_status', 'unknown')
+                    
+                    if connection_status in ['connected', 'firewalled']:
+                        qbit_status = "connected"
+                    elif connection_status == 'disconnected':
+                        qbit_status = "disconnected"
+                    else:
+                        qbit_status = connection_status
+                        
+            except requests.exceptions.ConnectionError:
+                return "⚠️ Cannot reach qBittorrent. The VM or qBittorrent may be offline."
+            except Exception as e:
+                qbit_status = f"error: {e}"
+        
+        # Get home WAN IP from UniFi sensor for comparison
+        home_ip = None
+        if config.HA_URL and config.HA_TOKEN:
+            try:
+                sensor_entity = config.UNIFI_WAN_SENSOR
+                url = f"{config.HA_URL}/api/states/{sensor_entity}"
+                headers = {
+                    "Authorization": f"Bearer {config.HA_TOKEN}",
+                    "Content-Type": "application/json"
+                }
+                response = requests.get(url, headers=headers, timeout=5)
+                if response.status_code == 200:
+                    home_ip = response.json().get('state', '')
+            except Exception:
+                pass
+        
+        # Get external IP from HA's perspective (for reference)
+        ha_ip = None
+        try:
+            ext_ip_response = requests.get("https://api.ipify.org?format=json", timeout=5)
+            ext_ip_response.raise_for_status()
+            ha_ip = ext_ip_response.json().get('ip', 'Unknown')
+        except Exception:
+            pass
+        
+        # Do geo lookup for HA's current IP
+        location = "Unknown"
+        if ha_ip:
+            try:
+                geo_response = requests.get(f"http://ip-api.com/json/{ha_ip}?fields=status,country,city,isp", timeout=5)
+                if geo_response.status_code == 200:
+                    geo_data = geo_response.json()
+                    if geo_data.get('status') == 'success':
+                        city = geo_data.get('city', 'Unknown')
+                        country = geo_data.get('country', 'Unknown')
+                        isp = geo_data.get('isp', 'Unknown')
+                        location = f"{city}, {country} ({isp})"
+            except Exception:
+                pass
+        
+        # Build response based on qBit status
+        if qbit_status == "connected":
+            if home_ip and ha_ip:
+                if ha_ip == home_ip:
+                    # HA shows home IP, so check if qBit is connected (VPN is separate)
+                    return f"✅ VPN appears connected. qBittorrent is online and connected. Home IP: {home_ip}. HA IP: {ha_ip} (Location: {location})"
+                else:
+                    return f"✅ VPN connected. qBittorrent is online. Current HA IP: {ha_ip}. Location: {location}"
+            else:
+                return f"✅ qBittorrent is connected and online. VPN likely working. (Could not verify home IP)"
+        elif qbit_status == "disconnected":
+            return f"⚠️ VPN may be DOWN! qBittorrent reports disconnected status. Check IPVanish on the VM."
+        else:
+            return f"VPN status uncertain. qBittorrent status: {qbit_status}. Home IP: {home_ip or 'unknown'}"
+    
+    except Exception as e:
+        return f"VPN check error: {e}"
+
+
+
 
 def google_search(query: str):
     """

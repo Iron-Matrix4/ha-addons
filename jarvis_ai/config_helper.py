@@ -41,5 +41,17 @@ GOOGLE_SEARCH_ENGINE_ID = os.getenv("GOOGLE_SEARCH_ENGINE_ID", "")
 # ===== GOOGLE MAPS =====
 GOOGLE_MAPS_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY", "")
 
+# ===== QBITTORRENT =====
+QBITTORRENT_URL = os.getenv("QBITTORRENT_URL", "")
+QBITTORRENT_USERNAME = os.getenv("QBITTORRENT_USERNAME", "")
+QBITTORRENT_PASSWORD = os.getenv("QBITTORRENT_PASSWORD", "")
+
+# ===== PROWLARR =====
+PROWLARR_URL = os.getenv("PROWLARR_URL", "")
+PROWLARR_API_KEY = os.getenv("PROWLARR_API_KEY", "")
+
+# ===== UNIFI (for VPN check) =====
+UNIFI_WAN_SENSOR = os.getenv("UNIFI_WAN_SENSOR", "sensor.unifi_gateway_wan_ip")
+
 # ===== LLM CONFIGURATION =====
 LLM_PROVIDER = "gemini"  # Always use Gemini for now

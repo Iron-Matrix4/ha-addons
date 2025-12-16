@@ -204,6 +204,9 @@ Be conversational and stay in character!
                     add_to_radarr,
                     query_sonarr,
                     add_to_sonarr,
+                    query_qbittorrent,
+                    query_prowlarr,
+                    check_vpn_status,
                 )
                 
                 # Map function names to actual functions
@@ -222,6 +225,9 @@ Be conversational and stay in character!
                     "add_to_radarr": add_to_radarr,
                     "query_sonarr": query_sonarr,
                     "add_to_sonarr": add_to_sonarr,
+                    "query_qbittorrent": query_qbittorrent,
+                    "query_prowlarr": query_prowlarr,
+                    "check_vpn_status": check_vpn_status,
                 }
                 
                 for i, part in enumerate(parts):

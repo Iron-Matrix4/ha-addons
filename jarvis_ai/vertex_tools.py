@@ -268,6 +268,50 @@ add_to_sonarr_func = FunctionDeclaration(
     }
 )
 
+# qBittorrent Query
+query_qbittorrent_func = FunctionDeclaration(
+    name="query_qbittorrent",
+    description="Query qBittorrent for torrent download status and information. Use for questions about active downloads, speeds, and torrent status.",
+    parameters={
+        "type": "object",
+        "properties": {
+            "query_type": {
+                "type": "string",
+                "description": "Type of query",
+                "enum": ["status", "stats", "speed", "downloading", "completed"]
+            }
+        },
+        "required": ["query_type"]
+    }
+)
+
+# Prowlarr Query
+query_prowlarr_func = FunctionDeclaration(
+    name="query_prowlarr",
+    description="Query Prowlarr for indexer status and information. Use for questions about search indexers.",
+    parameters={
+        "type": "object",
+        "properties": {
+            "query_type": {
+                "type": "string",
+                "description": "Type of query",
+                "enum": ["status", "stats", "indexers"]
+            }
+        },
+        "required": ["query_type"]
+    }
+)
+
+# VPN Status Check
+check_vpn_status_func = FunctionDeclaration(
+    name="check_vpn_status",
+    description="Check if the VPN is connected on the download VM. Verifies qBittorrent connectivity and compares external IP to home WAN.",
+    parameters={
+        "type": "object",
+        "properties": {}
+    }
+)
+
 # Create the Tool object for Vertex AI
 jarvis_tool = Tool(
     function_declarations=[
@@ -285,5 +329,8 @@ jarvis_tool = Tool(
         add_to_radarr_func,
         query_sonarr_func,
         add_to_sonarr_func,
+        query_qbittorrent_func,
+        query_prowlarr_func,
+        check_vpn_status_func,
     ]
 )
