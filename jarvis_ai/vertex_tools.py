@@ -312,6 +312,43 @@ check_vpn_status_func = FunctionDeclaration(
     }
 )
 
+# UniFi Network Query
+query_unifi_network_func = FunctionDeclaration(
+    name="query_unifi_network",
+    description="Query UniFi network information including WAN IP, connected devices, bandwidth, and uptime. Use for network status questions.",
+    parameters={
+        "type": "object",
+        "properties": {
+            "query_type": {
+                "type": "string",
+                "description": "Type of query",
+                "enum": ["wan_ip", "devices", "bandwidth", "uptime", "stats"]
+            }
+        },
+        "required": ["query_type"]
+    }
+)
+
+# Camera Analysis (Gemini Vision)
+analyze_camera_func = FunctionDeclaration(
+    name="analyze_camera",
+    description="Analyze a camera snapshot using AI vision. Use when user asks what's visible in a camera or area (e.g., 'What's in the garden?', 'Is anyone at the door?'). Grabs a snapshot and describes what it sees.",
+    parameters={
+        "type": "object",
+        "properties": {
+            "camera_entity": {
+                "type": "string",
+                "description": "Entity ID of the camera (e.g., 'camera.garden', 'camera.front_door', or just 'garden')"
+            },
+            "question": {
+                "type": "string",
+                "description": "What to ask about the image (e.g., 'What do you see?', 'Are there any people?', 'What animals are visible?')"
+            }
+        },
+        "required": ["camera_entity"]
+    }
+)
+
 # Create the Tool object for Vertex AI
 jarvis_tool = Tool(
     function_declarations=[
@@ -332,5 +369,7 @@ jarvis_tool = Tool(
         query_qbittorrent_func,
         query_prowlarr_func,
         check_vpn_status_func,
+        query_unifi_network_func,
+        analyze_camera_func,
     ]
 )

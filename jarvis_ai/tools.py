@@ -1190,7 +1190,229 @@ def check_vpn_status():
         return f"VPN check error: {e}"
 
 
+# ===== UNIFI NETWORK INTEGRATION =====
 
+def query_unifi_network(query_type: str):
+    """
+    Query UniFi network information from Home Assistant sensors.
+    
+    Args:
+        query_type: Type of query:
+            - "wan_ip" - Current WAN IP address
+            - "devices" - Number of connected devices
+            - "bandwidth" - Current bandwidth usage (if available)
+            - "uptime" - Gateway uptime
+            - "stats" - General network statistics
+    """
+    if not config.HA_URL or not config.HA_TOKEN:
+        return "Error: Home Assistant connection not configured."
+    
+    headers = {
+        "Authorization": f"Bearer {config.HA_TOKEN}",
+        "Content-Type": "application/json"
+    }
+    
+    try:
+        # Common UniFi sensor entity patterns
+        sensor_patterns = {
+            "wan_ip": ["sensor.unifi_gateway_wan_ip", "sensor.udm_wan_ip", "sensor.usg_wan_ip"],
+            "devices": ["sensor.unifi_network_clients", "sensor.unifi_devices", "sensor.udm_connected_clients"],
+            "uptime": ["sensor.unifi_gateway_uptime", "sensor.udm_uptime", "sensor.usg_uptime"],
+            "download": ["sensor.unifi_network_wan_download", "sensor.udm_wan_download"],
+            "upload": ["sensor.unifi_network_wan_upload", "sensor.udm_wan_upload"],
+        }
+        
+        def get_sensor_value(patterns):
+            """Try multiple sensor patterns and return first found."""
+            for pattern in patterns:
+                try:
+                    url = f"{config.HA_URL}/api/states/{pattern}"
+                    response = requests.get(url, headers=headers, timeout=5)
+                    if response.status_code == 200:
+                        data = response.json()
+                        state = data.get('state', 'unknown')
+                        unit = data.get('attributes', {}).get('unit_of_measurement', '')
+                        friendly_name = data.get('attributes', {}).get('friendly_name', pattern)
+                        if state and state != 'unavailable' and state != 'unknown':
+                            return state, unit, friendly_name
+                except Exception:
+                    continue
+            return None, None, None
+        
+        if query_type == "wan_ip":
+            state, _, name = get_sensor_value(sensor_patterns["wan_ip"])
+            if state:
+                # Also do geo lookup
+                location = ""
+                try:
+                    geo_response = requests.get(f"http://ip-api.com/json/{state}?fields=status,country,city,isp", timeout=5)
+                    if geo_response.status_code == 200:
+                        geo_data = geo_response.json()
+                        if geo_data.get('status') == 'success':
+                            location = f" (Location: {geo_data.get('city', 'Unknown')}, {geo_data.get('country', 'Unknown')})"
+                except Exception:
+                    pass
+                return f"Your WAN IP is {state}{location}"
+            return "Could not find UniFi WAN IP sensor. Make sure the UniFi integration is set up."
+        
+        elif query_type == "devices":
+            state, unit, name = get_sensor_value(sensor_patterns["devices"])
+            if state:
+                return f"There are {state} devices connected to your network."
+            return "Could not find UniFi device count sensor."
+        
+        elif query_type == "uptime":
+            state, unit, name = get_sensor_value(sensor_patterns["uptime"])
+            if state:
+                # Try to format nicely
+                try:
+                    # If it's in seconds, convert to readable
+                    seconds = float(state)
+                    days = int(seconds // 86400)
+                    hours = int((seconds % 86400) // 3600)
+                    minutes = int((seconds % 3600) // 60)
+                    uptime_str = f"{days} days, {hours} hours, {minutes} minutes"
+                    return f"Gateway uptime: {uptime_str}"
+                except ValueError:
+                    return f"Gateway uptime: {state} {unit}"
+            return "Could not find UniFi uptime sensor."
+        
+        elif query_type == "bandwidth":
+            dl_state, dl_unit, _ = get_sensor_value(sensor_patterns["download"])
+            up_state, up_unit, _ = get_sensor_value(sensor_patterns["upload"])
+            
+            if dl_state or up_state:
+                parts = []
+                if dl_state:
+                    parts.append(f"↓ {dl_state} {dl_unit}")
+                if up_state:
+                    parts.append(f"↑ {up_state} {up_unit}")
+                return f"Current bandwidth: {', '.join(parts)}"
+            return "Could not find UniFi bandwidth sensors."
+        
+        elif query_type == "stats":
+            # Get all available stats
+            results = []
+            
+            wan_ip, _, _ = get_sensor_value(sensor_patterns["wan_ip"])
+            if wan_ip:
+                results.append(f"WAN IP: {wan_ip}")
+            
+            devices, _, _ = get_sensor_value(sensor_patterns["devices"])
+            if devices:
+                results.append(f"Connected devices: {devices}")
+            
+            uptime, unit, _ = get_sensor_value(sensor_patterns["uptime"])
+            if uptime:
+                try:
+                    seconds = float(uptime)
+                    days = int(seconds // 86400)
+                    hours = int((seconds % 86400) // 3600)
+                    results.append(f"Uptime: {days}d {hours}h")
+                except ValueError:
+                    results.append(f"Uptime: {uptime}")
+            
+            if results:
+                return "UniFi Network Stats:\n" + "\n".join(f"- {r}" for r in results)
+            return "Could not retrieve UniFi network stats. Check that the UniFi integration is configured."
+        
+        else:
+            return f"Unknown query type: {query_type}. Supported: wan_ip, devices, bandwidth, uptime, stats"
+    
+    except Exception as e:
+        return f"UniFi query error: {e}"
+
+
+# ===== CAMERA ANALYSIS (GEMINI VISION) =====
+
+def analyze_camera(camera_entity: str, question: str = "What do you see in this image?"):
+    """
+    Analyze a camera snapshot using Gemini Vision.
+    Grabs a snapshot from a Home Assistant camera entity and sends it to Gemini for analysis.
+    
+    Args:
+        camera_entity: Entity ID of the camera (e.g., "camera.garden", "camera.front_door")
+        question: What to ask about the image (e.g., "What's in the garden?", "Is anyone at the door?")
+    """
+    import base64
+    
+    if not config.HA_URL or not config.HA_TOKEN:
+        return "Error: Home Assistant connection not configured."
+    
+    if not config.GEMINI_API_KEY:
+        return "Error: Gemini API key not configured for vision analysis."
+    
+    try:
+        # Step 1: Get camera snapshot from Home Assistant
+        # Normalize entity ID
+        if not camera_entity.startswith("camera."):
+            camera_entity = f"camera.{camera_entity}"
+        
+        snapshot_url = f"{config.HA_URL}/api/camera_proxy/{camera_entity}"
+        headers = {
+            "Authorization": f"Bearer {config.HA_TOKEN}",
+        }
+        
+        logger.info(f"Fetching camera snapshot from {camera_entity}")
+        snapshot_response = requests.get(snapshot_url, headers=headers, timeout=10)
+        
+        if snapshot_response.status_code == 404:
+            return f"Camera '{camera_entity}' not found. Use search_ha_entities to find available cameras."
+        
+        snapshot_response.raise_for_status()
+        
+        image_data = snapshot_response.content
+        image_base64 = base64.b64encode(image_data).decode('utf-8')
+        
+        # Detect content type
+        content_type = snapshot_response.headers.get('Content-Type', 'image/jpeg')
+        
+        # Step 2: Send to Gemini Vision API
+        gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={config.GEMINI_API_KEY}"
+        
+        vision_payload = {
+            "contents": [{
+                "parts": [
+                    {"text": question},
+                    {
+                        "inline_data": {
+                            "mime_type": content_type,
+                            "data": image_base64
+                        }
+                    }
+                ]
+            }],
+            "generationConfig": {
+                "temperature": 0.4,
+                "maxOutputTokens": 512
+            }
+        }
+        
+        logger.info(f"Sending image to Gemini Vision for analysis")
+        vision_response = requests.post(gemini_url, json=vision_payload, timeout=30)
+        vision_response.raise_for_status()
+        
+        result = vision_response.json()
+        
+        # Extract the text response
+        if 'candidates' in result and result['candidates']:
+            text_parts = result['candidates'][0].get('content', {}).get('parts', [])
+            if text_parts:
+                analysis = text_parts[0].get('text', 'No analysis available.')
+                return f"Camera analysis for {camera_entity}:\n{analysis}"
+        
+        return "Could not get analysis from Gemini Vision."
+    
+    except requests.exceptions.HTTPError as e:
+        if e.response.status_code == 404:
+            return f"Camera '{camera_entity}' not found."
+        return f"Camera analysis error: {e}"
+    except Exception as e:
+        logger.error(f"Camera analysis error: {e}", exc_info=True)
+        return f"Camera analysis error: {e}"
+
+
+# ===== WEB SEARCH & KNOWLEDGE =====
 
 def google_search(query: str):
     """

@@ -207,6 +207,8 @@ Be conversational and stay in character!
                     query_qbittorrent,
                     query_prowlarr,
                     check_vpn_status,
+                    query_unifi_network,
+                    analyze_camera,
                 )
                 
                 # Map function names to actual functions
@@ -228,6 +230,8 @@ Be conversational and stay in character!
                     "query_qbittorrent": query_qbittorrent,
                     "query_prowlarr": query_prowlarr,
                     "check_vpn_status": check_vpn_status,
+                    "query_unifi_network": query_unifi_network,
+                    "analyze_camera": analyze_camera,
                 }
                 
                 for i, part in enumerate(parts):
