@@ -38,3 +38,15 @@ Thumbs.db
 *.wav
 *.mp3
 !jarvis_sample.mp3
+
+# Test files with potential personal data
+test_*.py
+check_*.py
+delete_*.py
+infer_*.py
+
+# Temporary API files
+*_temp.py
+
+# Memory database (contains user preferences)
+*.db

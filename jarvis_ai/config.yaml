@@ -1,7 +1,9 @@
 name: "Jarvis AI Conversation Agent"
 description: "J.A.R.V.I.S. - Just A Rather Very Intelligent System. AI conversation agent powered by Gemini for Home Assistant voice pipeline."
-version: "1.0.1"
+version: "1.0.3"
 slug: "jarvis_ai"
+image: "ghcr.io/home-assistant/{arch}-addon-jarvis_ai"
+icon: icon.png
 init: false
 arch:
   - amd64
@@ -16,41 +18,86 @@ ports_description:
 homeassistant_api: true
 hassio_api: true
 hassio_role: default
+
+# Default configuration values
 options:
+  # === CORE AI SETTINGS (REQUIRED) ===
   gemini_api_key: ""
   gemini_model: "gemini-2.5-flash-lite"
   gcp_project_id: ""
+  
+  # === OPTIONAL INTEGRATIONS ===
+  # Leave empty to disable each integration
+  
+  # Google Services
   google_search_api_key: ""
   google_search_engine_id: ""
   google_maps_api_key: ""
+  google_calendar_id: ""
+  
+  # Music Streaming
   spotify_client_id: ""
   spotify_client_secret: ""
+  
+  # Media Management (*arr stack)
   radarr_url: ""
   radarr_api_key: ""
   sonarr_url: ""
   sonarr_api_key: ""
+  prowlarr_url: ""
+  prowlarr_api_key: ""
+  
+  # Download Client
   qbittorrent_url: ""
   qbittorrent_username: ""
   qbittorrent_password: ""
-  prowlarr_url: ""
-  prowlarr_api_key: ""
+  
+  # UniFi Controller (for advanced network queries)
+  unifi_controller_url: ""
+  unifi_controller_api_token: ""
+  unifi_controller_username: ""
+  unifi_controller_password: ""
+  unifi_site_id: "default"
+  
+  # Network Monitoring
   unifi_wan_sensor: "sensor.unifi_gateway_wan_ip"
+
+# Configuration schema with validation
 schema:
-  gemini_api_key: str
+  # === CORE AI SETTINGS ===
+  gemini_api_key: password?
   gemini_model: list(gemini-2.5-flash-lite|gemini-2.5-flash|gemini-2.5-flash-tts|gemma-3-12b|gemma-3-1b|gemma-3-27b|gemma-3-2b|gemma-3-4b)?
   gcp_project_id: str?
-  google_search_api_key: str?
+  
+  # === GOOGLE SERVICES ===
+  google_search_api_key: password?
   google_search_engine_id: str?
-  google_maps_api_key: str?
+  google_maps_api_key: password?
+  google_calendar_id: str?
+  
+  # === MUSIC STREAMING ===
   spotify_client_id: str?
-  spotify_client_secret: str?
-  radarr_url: str?
-  radarr_api_key: str?
-  sonarr_url: str?
-  sonarr_api_key: str?
-  qbittorrent_url: str?
+  spotify_client_secret: password?
+  
+  # === MEDIA MANAGEMENT (*ARR STACK) ===
+  radarr_url: url?
+  radarr_api_key: password?
+  sonarr_url: url?
+  sonarr_api_key: password?
+  prowlarr_url: url?
+  prowlarr_api_key: password?
+  
+  # === DOWNLOAD CLIENT ===
+  qbittorrent_url: url?
   qbittorrent_username: str?
   qbittorrent_password: password?
-  prowlarr_url: str?
-  prowlarr_api_key: str?
+  
+  # === UNIFI CONTROLLER (ADVANCED) ===
+  unifi_controller_url: url?
+  unifi_controller_api_token: password?
+  unifi_controller_username: str?
+  unifi_controller_password: password?
+  unifi_site_id: str?
+  
+  # === NETWORK MONITORING ===
   unifi_wan_sensor: str?

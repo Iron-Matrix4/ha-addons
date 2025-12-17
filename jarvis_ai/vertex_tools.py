@@ -66,6 +66,36 @@ search_ha_entities_func = FunctionDeclaration(
     }
 )
 
+get_person_location_func = FunctionDeclaration(
+    name="get_person_location",
+    description="Get the current location of a person from Home Assistant person entities. Use when asked 'where is [name]' or similar location questions.",
+    parameters={
+        "type": "object",
+        "properties": {
+            "person_name": {
+                "type": "string",
+                "description": "Name of the person to locate (e.g., 'John', 'Sarah')"
+            }
+        },
+        "required": ["person_name"]
+    }
+)
+
+get_appliance_status_func = FunctionDeclaration(
+    name="get_appliance_status",
+    description="Get intelligent status of an appliance including time remaining until completion. Automatically finds relevant sensors for washing machine, dryer, dishwasher, etc. Use when asked 'how long until X is done' or 'when will X finish'.",
+    parameters={
+        "type": "object",
+        "properties": {
+            "appliance_name": {
+                "type": "string",
+                "description": "Name of the appliance (e.g., 'washing machine', 'dryer', 'dishwasher', 'oven')"
+            }
+        },
+        "required": ["appliance_name"]
+    }
+)
+
 # Weather
 get_weather_func = FunctionDeclaration(
     name="get_weather",
@@ -127,6 +157,72 @@ google_search_func = FunctionDeclaration(
     }
 )
 
+# Google Calendar
+add_calendar_event_func = FunctionDeclaration(
+    name="add_calendar_event",
+    description="Add an event or reminder to Google Calendar. Supports natural language dates like 'tomorrow at 2pm' or 'Friday at 10am'.",
+    parameters={
+        "type": "object",
+        "properties": {
+            "title": {
+                "type": "string",
+                "description": "Event title or reminder description"
+            },
+            "date_time": {
+                "type": "string",
+                "description": "When the event starts. Natural language (e.g., 'tomorrow at 2pm', 'Friday at 10am', 'next Monday 3pm') or ISO format"
+            },
+            "duration_minutes": {
+                "type": "integer",
+                "description": "Event duration in minutes. Default: 60"
+            },
+            "description": {
+                "type": "string",
+                "description": "Optional event description or notes"
+            }
+        },
+        "required": ["title", "date_time"]
+    }
+)
+
+list_calendar_events_func = FunctionDeclaration(
+    name="list_calendar_events",
+    description="List upcoming calendar events. Use this when user asks 'what's on my calendar' or 'do I have anything scheduled'.",
+    parameters={
+        "type": "object",
+        "properties": {
+            "days_ahead": {
+                "type": "integer",
+                "description": "Number of days to look ahead. Default: 7"
+            }
+        },
+        "required": []
+    }
+)
+
+create_location_reminder_func = FunctionDeclaration(
+    name="create_location_reminder",
+    description="Create a reminder that triggers when user arrives at a location (e.g., 'remind me to X when I get home'). Uses person tracker.",
+    parameters={
+        "type": "object",
+        "properties": {
+            "message": {
+                "type": "string",
+                "description": "Reminder message (what to remind about)"
+            },
+            "location": {
+                "type": "string",
+                "description": "Target location state. Default: 'home'. Can be 'home', 'work', 'away', etc."
+            },
+            "person_entity": {
+                "type": "string",
+                "description": "Person entity to track. Default: 'person.user'"
+            }
+        },
+        "required": ["message"]
+    }
+)
+
 # Music
 play_music_func = FunctionDeclaration(
     name="play_music",
@@ -160,7 +256,7 @@ save_preference_func = FunctionDeclaration(
         "properties": {
             "name": {
                 "type": "string",
-                "description": "Preference key name (e.g., 'wife_name', 'phone_number', 'favorite_color')"
+                "description": "Preference key name (e.g., 'spouse_name', 'phone_number', 'favorite_color')"
             },
             "value": {
                 "type": "string",
@@ -180,6 +276,21 @@ get_preference_func = FunctionDeclaration(
             "name": {
                 "type": "string",
                 "description": "Preference key to retrieve"
+            }
+        },
+        "required": ["name"]
+    }
+)
+
+delete_preference_func = FunctionDeclaration(
+    name="delete_preference",
+    description="Delete a saved preference from memory. Use when user wants to forget or remove a preference.",
+    parameters={
+        "type": "object",
+        "properties": {
+            "name": {
+                "type": "string",
+                "description": "Preference key to delete (exact name)"
             }
         },
         "required": ["name"]
@@ -349,18 +460,70 @@ analyze_camera_func = FunctionDeclaration(
     }
 )
 
+query_unifi_controller_func = FunctionDeclaration(
+    name="query_unifi_controller",
+    description="Query UniFi Controller for network information: DHCP leases, available IPs, client details/signal, bandwidth stats, alerts, device status, health, and port forwards.",
+    parameters={
+        "type": "object",
+        "properties": {
+            "query_type": {
+                "type": "string",
+                "description": "Type of query to perform",
+                "enum": [
+                    "dhcp_leases", 
+                    "dhcp_stats", 
+                    "next_ip",
+                    "network_stats",
+                    "clients_active", 
+                    "clients_count", 
+                    "clients_bandwidth",
+                    "network_info",
+                    "wan_ip",
+                    "client_signal",
+                    "client_details",
+                    "top_bandwidth",
+                    "recent_alerts",
+                    "device_status",
+                    "system_health",
+                    "port_forwards",
+                    "firewall_rules",
+                    "port_forwarding",
+                    "device_info",
+                    "blocked_traffic",
+                    "security_events"
+                ]
+            },
+            "subnet": {
+                "type": "string",
+                "description": "Subnet for next_ip/network_stats queries. Can be CIDR (e.g., '192.168.1.0/24') or network name (e.g., 'IoT'). Required for next_ip and network_stats."
+            },
+            "client_id": {
+                "type": "string",
+                "description": "Client identifier for client_signal/client_details queries. Can be hostname, IP address, or MAC address. Required for client-specific queries."
+            }
+        },
+        "required": ["query_type"]
+    }
+)
+
 # Create the Tool object for Vertex AI
 jarvis_tool = Tool(
     function_declarations=[
         control_home_assistant_func,
         get_ha_state_func,
         search_ha_entities_func,
+        get_person_location_func,
+        get_appliance_status_func,
         get_weather_func,
         get_travel_time_func,
         google_search_func,
+        add_calendar_event_func,
+        list_calendar_events_func,
+        create_location_reminder_func,
         play_music_func,
-        save_preference_func,
-        get_preference_func,
+        get_appliance_status_func,
+        query_qbittorrent_func,
+        delete_preference_func,
         get_current_time_func,
         query_radarr_func,
         add_to_radarr_func,
@@ -370,6 +533,7 @@ jarvis_tool = Tool(
         query_prowlarr_func,
         check_vpn_status_func,
         query_unifi_network_func,
+        query_unifi_controller_func,
         analyze_camera_func,
     ]
 )

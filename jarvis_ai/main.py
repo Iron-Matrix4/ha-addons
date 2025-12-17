@@ -29,7 +29,17 @@ async def run_servers():
     
     # Initialize memory (shared between servers)
     memory = Memory(db_path="/data/jarvis_memory.db")
-    logger.info(f"Memory stats: {memory.get_stats()}")
+    stats = memory.get_stats()
+    logger.info(f"Memory stats: {stats}")
+    
+    # Log loaded preferences for debugging
+    all_prefs = memory.get_all_preferences()
+    if all_prefs:
+        logger.info(f"Loaded {len(all_prefs)} preferences from persistent storage:")
+        for key, value in all_prefs.items():
+            logger.info(f"  - {key}: {value}")
+    else:
+        logger.info("No preferences found in persistent storage")
     
     # Initialize Jarvis brain (shared between servers)
     jarvis = JarvisConversation(memory=memory)

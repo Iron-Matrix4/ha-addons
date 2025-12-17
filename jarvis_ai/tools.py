@@ -51,10 +51,31 @@ def control_home_assistant(entity_id: str, command: str = "turn_on", parameter: 
     if not config.HA_URL or not config.HA_TOKEN:
         return "Error: Home Assistant URL or Token not configured."
 
+    # Determine the correct service based on entity domain
+    domain = entity_id.split('.')[0]
+    
+    # Buttons use press service, not turn_on/turn_off
+    if domain == 'button':
+        headers = {
+            "Authorization": f"Bearer {config.HA_TOKEN}",
+            "Content-Type": "application/json",
+        }
+        service_data = {
+            "entity_id": entity_id
+        }
+        url = f"{config.HA_URL}/api/services/button/press"
+        try:
+            response = requests.post(url, json=service_data, headers=headers, timeout=10)
+            response.raise_for_status()
+            _LAST_INTERACTED_ENTITY = entity_id
+            return f"Pressed {entity_id} successfully."
+        except Exception as e:
+            return f"Failed to press {entity_id}: {e}"
+
     # Resolve the entity ID (handles Light/Switch mismatch fallback)
     resolved_id, was_resolved = _resolve_entity(entity_id)
     entity_id = resolved_id
-    domain = entity_id.split(".")[0]
+    domain = entity_id.split(".")[0] # Re-evaluate domain in case of resolution
     service = command
 
     # Temperature Helper Logic
@@ -297,6 +318,266 @@ def search_ha_entities(query: str):
         return "\n".join(output)
     except Exception as e:
         return f"Failed to search entities: {e}"
+
+def get_appliance_status(appliance_name: str):
+    """
+    Get intelligent status of an appliance including time remaining, completion time, or current state.
+    Automatically searches for relevant sensors that track completion, remaining time, or progress.
+    
+    Args:
+        appliance_name: Name of the appliance (e.g., "washing machine", "dryer", "dishwasher")
+    
+    Returns:
+        Status including time remaining if available
+    """
+    if not config.HA_URL or not config.HA_TOKEN:
+        return "Error: Home Assistant connection not configured."
+    
+    try:
+        # Search for all entities related to this appliance
+        results = _search_ha_entities_raw(appliance_name)
+        
+        if not results:
+            return f"No entities found for '{appliance_name}'"
+        
+        # Look for specific attributes that indicate time/completion
+        time_keywords = ['remaining', 'finish', 'complete', 'end', 'duration', 'time_left', 'eta']
+        status_keywords = ['status', 'state', 'program', 'cycle', 'phase']
+        
+        url = f"{config.HA_URL}/api/states"
+        headers = {
+            "Authorization": f"Bearer {config.HA_TOKEN}",
+            "Content-Type": "application/json",
+        }
+        
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
+        all_entities = response.json()
+        
+        # Filter to our appliance's entities
+        entity_ids = [r['entity_id'] for r in results]
+        appliance_entities = [e for e in all_entities if e['entity_id'] in entity_ids]
+        
+        logger.info(f"Found {len(appliance_entities)} entities for '{appliance_name}'")
+        
+        # Find time-related sensors
+        time_info = []
+        status_info = []
+        power_info = None
+        
+        for entity in appliance_entities:
+            entity_id = entity['entity_id']
+            state = entity['state']
+            attributes = entity.get('attributes', {})
+            friendly_name = attributes.get('friendly_name', entity_id)
+            
+            # Check entity_id and attributes for time keywords
+            entity_lower = entity_id.lower()
+            
+            # Skip power consumption sensors (they often have "end" but aren't what we want)
+            if 'power' in entity_lower and 'consumption' in entity_lower:
+                logger.debug(f"Skipping power consumption sensor: {entity_id}")
+                continue
+            
+            # Prioritize keywords - check best matches first
+            best_keywords = ['completion', 'remaining', 'finish', 'time_left', 'eta']
+            ok_keywords = ['end', 'duration', 'complete']
+            
+            matched_keyword = None
+            for keyword in best_keywords:
+                if keyword in entity_lower:
+                    matched_keyword = keyword
+                    logger.info(f"Matched BEST keyword '{keyword}' in {entity_id}")
+                    break
+            if not matched_keyword:
+                for keyword in ok_keywords:
+                    if keyword in entity_lower:
+                        matched_keyword = keyword
+                        logger.info(f"Matched OK keyword '{keyword}' in {entity_id}")
+                        break
+            
+            if matched_keyword:
+                unit = attributes.get('unit_of_measurement', '')
+                # More flexible time value check - accept numbers, datetime formats, timestamps
+                if state and state not in ['unknown', 'unavailable', 'none', '']:
+                    # Check if it's a valid time-related value
+                    state_str = str(state).strip()
+                    is_time_value = (
+                        any(c.isdigit() for c in state_str) or  # Contains digits
+                        'T' in state_str or  # ISO datetime format
+                        '-' in state_str or  # Date format or negative number
+                        ':' in state_str     # Time format
+                    )
+                    if is_time_value:
+                        time_info.append(f"{friendly_name}: {state} {unit}".strip())
+            
+            # Check attributes for finish_at, end_time, etc. (but NOT friendly_name or device_class)
+            skip_attrs = ['friendly_name', 'device_class', 'icon', 'unit_of_measurement']
+            for attr_key, attr_val in attributes.items():
+                if attr_key in skip_attrs:
+                    continue
+                attr_lower = attr_key.lower()
+                if any(kw in attr_lower for kw in time_keywords):
+                    # Only add if value looks meaningful (not None, not empty, has content)
+                    if attr_val and str(attr_val).strip():
+                        time_info.append(f"{attr_key.replace('_', ' ').title()}: {attr_val}")
+            
+            # Check for status/state sensors
+            for keyword in status_keywords:
+                if keyword in entity_lower and entity_id.startswith('sensor.'):
+                    status_info.append(f"{friendly_name}: {state}")
+                    break
+            
+            # Track power to see if it's running
+            if 'power' in entity_lower and entity_id.startswith(('binary_sensor.', 'sensor.')):
+                power_info = (friendly_name, state)
+        
+        # Build response
+        output = [f"{appliance_name.title()} Status:"]
+        
+        if time_info:
+            # Try to calculate relative time if we have a completion timestamp
+            from datetime import datetime, timezone
+            relative_time_str = None
+            
+            for info in time_info:
+                # Look for ISO timestamp in the info
+                if 'T' in info and 'Z' in info or '+' in info:
+                    try:
+                        # Extract timestamp from string like "Completion time: 2025-12-17T12:46:41+00:00"
+                        timestamp_str = info.split(': ', 1)[1] if ': ' in info else info
+                        timestamp_str = timestamp_str.strip()
+                        
+                        # Parse the timestamp
+                        if timestamp_str.endswith('Z'):
+                            finish_time = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+                        else:
+                            finish_time = datetime.fromisoformat(timestamp_str)
+                        
+                        # Calculate time remaining
+                        now = datetime.now(timezone.utc)
+                        remaining = finish_time - now
+                        
+                        # Convert to human-readable format
+                        total_seconds = int(remaining.total_seconds())
+                        if total_seconds > 0:
+                            hours = total_seconds // 3600
+                            minutes = (total_seconds % 3600) // 60
+                            
+                            if hours > 0:
+                                relative_time_str = f"in {hours} hour{'s' if hours != 1 else ''} and {minutes} minute{'s' if minutes != 1 else ''}"
+                            elif minutes > 0:
+                                relative_time_str = f"in {minutes} minute{'s' if minutes != 1 else ''}"
+                            else:
+                                relative_time_str = "less than a minute"
+                        else:
+                            relative_time_str = "already finished"
+                        
+                        break  # Found a valid timestamp, stop looking
+                    except:
+                        pass
+            
+            if relative_time_str:
+                output.append(f"\n⏱️  {relative_time_str}")
+            else:
+                output.append("\nTime Remaining:")
+                for info in time_info[:3]:  # Limit to 3 most relevant
+                    # Filter out "Power Consumption End" from display
+                    if 'power' not in info.lower() or 'consumption' not in info.lower():
+                        output.append(f"  - {info}")
+        
+        if status_info:
+            output.append("\nCurrent Status:")
+            for info in status_info[:2]:
+                output.append(f"  - {info}")
+        
+        if power_info and not time_info and not status_info:
+            output.append(f"\nPower: {power_info[1]}")
+        
+        if len(output) == 1:  # Only header, no useful info found
+            # Fall back to main entity state
+            main_entity = appliance_entities[0] if appliance_entities else None
+            if main_entity:
+                state = main_entity['state']
+                output.append(f"\nCurrent state: {state}")
+                output.append(f"\nNote: No time remaining sensor found. Add a sensor that tracks completion time for better status updates.")
+        
+        return "\n".join(output)
+        
+    except Exception as e:
+        logger.error(f"Appliance status error: {e}", exc_info=True)
+        return f"Error getting status for {appliance_name}: {e}"
+
+def get_person_location(person_name: str):
+    """
+    Get the location of a person from Home Assistant person entities.
+    Looks up person.{name} and returns their current location/zone.
+    
+    Args:
+        person_name: Name of the person (e.g., "John", "Sarah")
+    """
+    if not config.HA_URL or not config.HA_TOKEN:
+        return "Error: Home Assistant connection not configured."
+    
+    try:
+        # Try to find person entity by name
+        # First try direct match: person.{lowercased_name}
+        entity_id = f"person.{person_name.lower().replace(' ', '_')}"
+        
+        url = f"{config.HA_URL}/api/states/{entity_id}"
+        headers = {
+            "Authorization": f"Bearer {config.HA_TOKEN}",
+            "Content-Type": "application/json",
+        }
+        
+        response = requests.get(url, headers=headers, timeout=5)
+        
+        if response.status_code == 404:
+            # Entity not found - try searching all person entities
+            all_states_url = f"{config.HA_URL}/api/states"
+            all_response = requests.get(all_states_url, headers=headers, timeout=5)
+            all_response.raise_for_status()
+            
+            all_states = all_response.json()
+            person_entities = [e for e in all_states if e['entity_id'].startswith('person.')]
+            
+            # Search by friendly name
+            for entity in person_entities:
+                friendly_name = entity.get('attributes', {}).get('friendly_name', '')
+                if person_name.lower() in friendly_name.lower():
+                    entity_id = entity['entity_id']
+                    response = requests.get(f"{config.HA_URL}/api/states/{entity_id}", headers=headers, timeout=5)
+                    break
+            else:
+                return f"Could not find a person entity for '{person_name}'. Make sure they have a person entity in Home Assistant."
+        
+        response.raise_for_status()
+        state_data = response.json()
+        
+        location = state_data['state']
+        friendly_name = state_data.get('attributes', {}).get('friendly_name', person_name)
+        
+        # Get additional context
+        source = state_data.get('attributes', {}).get('source', '')
+        latitude = state_data.get('attributes', {}).get('latitude')
+        longitude = state_data.get('attributes', {}).get('longitude')
+        
+        # Format response based on location
+        if location == "home":
+            return f"{friendly_name} is at home, Sir."
+        elif location == "not_home":
+            if latitude and longitude:
+                return f"{friendly_name} is away from home, Sir. Last known coordinates: {latitude}, {longitude}"
+            return f"{friendly_name} is away from home, Sir."
+        else:
+            # Named zone
+            return f"{friendly_name} is at {location}, Sir."
+            
+    except requests.exceptions.HTTPError as e:
+        return f"Failed to get location for {person_name}: {e}"
+    except Exception as e:
+        logger.error(f"Person location error: {e}", exc_info=True)
+        return f"Error getting person location: {e}"
 
 # ===== SPOTIFY CONTROL =====
 
@@ -931,17 +1212,36 @@ def query_qbittorrent(query_type: str):
                 return "Error: qBittorrent authentication failed."
         
         if query_type == "status":
-            # Check if qBittorrent is responding
+            # Check if qBittorrent is responding AND get connection status
             url = f"{config.QBITTORRENT_URL}/api/v2/app/version"
             response = session.get(url, timeout=5)
             response.raise_for_status()
             version = response.text
-            return f"qBittorrent is running. Version: {version}"
+            
+            # Also get connection status
+            transfer_url = f"{config.QBITTORRENT_URL}/api/v2/transfer/info"
+            transfer_response = session.get(transfer_url, timeout=5)
+            transfer_response.raise_for_status()
+            transfer_info = transfer_response.json()
+            
+            connection_status = transfer_info.get('connection_status', 'unknown')
+            
+            # Format connection status
+            if connection_status == 'connected':
+                status_msg = "Connected and working"
+            elif connection_status == 'firewalled':
+                status_msg = "Connected but firewalled (incoming connections blocked)"
+            elif connection_status == 'disconnected':
+                status_msg = "DISCONNECTED - Check VPN! Downloads will not work."
+            else:
+                status_msg = f"Status: {connection_status}"
+            
+            return f"qBittorrent is running (v{version}). Connection: {status_msg}"
         
         elif query_type == "stats":
             # Get torrent counts
             url = f"{config.QBITTORRENT_URL}/api/v2/torrents/info"
-            response = session.get(url, timeout=10)
+            response = session.get(url, timeout=10, verify=False)
             response.raise_for_status()
             torrents = response.json()
             
@@ -1323,6 +1623,739 @@ def query_unifi_network(query_type: str):
         return f"UniFi query error: {e}"
 
 
+# ===== UNIFI CONTROLLER API (ADVANCED) =====
+
+def _get_unifi_session():
+    """
+    Create authenticated session with UniFi Controller.
+    Supports both API token (preferred) and username/password auth.
+    """
+    if not config.UNIFI_CONTROLLER_URL:
+        return None, "UniFi Controller URL not configured"
+    
+    session = requests.Session()
+    # Disable SSL warnings for self-signed certs (common with UniFi)
+    import urllib3
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+    session.verify = False
+    
+    try:
+        # Try API token first (recommended for UniFi OS / Cloud Gateway Max)
+        if config.UNIFI_CONTROLLER_API_TOKEN:
+            # Cloud Gateway Max uses X-API-KEY header
+            session.headers.update({
+                "X-API-KEY": config.UNIFI_CONTROLLER_API_TOKEN,
+                "Content-Type": "application/json"
+            })
+            logger.info("Using UniFi API token authentication")
+            return session, None
+        
+        # Fall back to username/password
+        elif config.UNIFI_CONTROLLER_USERNAME and config.UNIFI_CONTROLLER_PASSWORD:
+            login_url = f"{config.UNIFI_CONTROLLER_URL}/api/auth/login"
+            login_data = {
+                "username": config.UNIFI_CONTROLLER_USERNAME,
+                "password": config.UNIFI_CONTROLLER_PASSWORD
+            }
+            
+            response = session.post(login_url, json=login_data, timeout=10)
+            response.raise_for_status()
+            
+            # UniFi OS uses token in response
+            if "x-csrf-token" in response.headers:
+                session.headers.update({
+                    "X-CSRF-Token": response.headers["x-csrf-token"]
+                })
+            
+            logger.info("UniFi session authenticated with username/password")
+            return session, None
+        
+        else:
+            return None, "UniFi Controller credentials not configured (need API token or username/password)"
+    
+    except Exception as e:
+        logger.error(f"UniFi authentication error: {e}", exc_info=True)
+        return None, f"Failed to authenticate with UniFi Controller: {e}"
+
+
+def query_unifi_controller(query_type: str, subnet: str = "", client_id: str = ""):
+    """
+    Advanced UniFi Controller queries for network information not available through HA integration.
+    
+    Args:
+        query_type: Type of query:
+            - "dhcp_leases" - Show active DHCP leases
+            - "dhcp_stats" - DHCP statistics summary
+            - "next_ip" - Find next available IP in subnet (requires subnet parameter)
+            - "clients_active" - List active clients
+            - "clients_count" - Count of connected clients
+            - "clients_bandwidth" - Clients using most bandwidth
+            - "network_info" - Network configuration overview
+            - "firewall_rules" - Firewall rules summary
+            - "port_forwarding" - Port forwarding rules
+            - "device_info" - UniFi device information (USG/UDM stats)
+        subnet: Optional subnet for next_ip query (e.g., "192.168.1.0/24")
+    """
+    session, error = _get_unifi_session()
+    if error:
+        return f"Error: {error}"
+    
+    site_id = config.UNIFI_SITE_ID or "default"
+    base_url = config.UNIFI_CONTROLLER_URL.rstrip('/')
+    
+    try:
+        if query_type == "dhcp_leases":
+            # Get active clients (includes DHCP info) - Cloud Gateway Max API v2
+            url = f"{base_url}/proxy/network/v2/api/site/{site_id}/clients/active"
+            response = session.get(url, timeout=10, verify=False)
+            response.raise_for_status()
+            data = response.json()
+            
+            if not data:
+                return "No active clients/DHCP leases found."
+            
+            # Cloud Gateway Max returns array directly
+            leases = data if isinstance(data, list) else data.get('data', [])
+            output = [f"Active DHCP Leases ({len(leases)} total):"]
+            
+            for lease in leases[:20]:  # Limit to 20 for voice output
+                hostname = lease.get('hostname') or lease.get('name', 'Unknown')
+                ip = lease.get('ip') or lease.get('fixed_ip', 'N/A')
+                mac = lease.get('mac', 'N/A')
+                output.append(f"- {hostname}: {ip} ({mac})")
+            
+            if len(leases) > 20:
+                output.append(f"... and {len(leases) - 20} more")
+            
+            return "\n".join(output)
+        
+        elif query_type == "dhcp_stats":
+            # Use same endpoint as dhcp_leases - Cloud Gateway Max API v2
+            url = f"{base_url}/proxy/network/v2/api/site/{site_id}/clients/active"
+            response = session.get(url, timeout=10, verify=False)
+            response.raise_for_status()
+            data = response.json()
+            
+            leases = data if isinstance(data, list) else data.get('data', [])
+            total = len(leases)
+            
+            return f"Total active DHCP leases: {total}"
+        
+        elif query_type == "network_stats":
+            # Get comprehensive stats for a specific network by name
+            if not subnet:  # Using subnet parameter to pass network name
+                return "Error: network name required (e.g., 'Main-Network')"
+            
+            import ipaddress
+            
+            # Get network configuration
+            url_net = f"{base_url}/proxy/network/api/s/{site_id}/rest/networkconf"
+            response_net = session.get(url_net, timeout=10, verify=False)
+            response_net.raise_for_status()
+            net_data = response_net.json()
+            
+            # Find the network by name
+            network_config = None
+            for net in net_data.get('data', []):
+                net_name = net.get('name', '')
+                if subnet.lower() == net_name.lower() or subnet.lower().replace('-', ' ') == net_name.replace('-', ' ').lower():
+                    network_config = net
+                    break
+            
+            if not network_config:
+                return f"Network '{subnet}' not found. Check network name in UniFi controller."
+            
+            # Extract network details
+            name = network_config.get('name', 'Unknown')
+            net_subnet = network_config.get('ip_subnet') or f"{network_config.get('network')}/{network_config.get('networkgroup', 24)}"
+            vlan_id = network_config.get('vlan') or network_config.get('vlan_id', 'Default')
+            dhcp_start = network_config.get('dhcpd_start', 'N/A')
+            dhcp_end = network_config.get('dhcpd_stop', 'N/A')
+            dhcp_enabled = network_config.get('dhcpd_enabled', False)
+            
+            # Get clients from this network using /stat/sta (has network names)
+            url = f"{base_url}/proxy/network/api/s/{site_id}/stat/sta"
+            response = session.get(url, timeout=10, verify=False)
+            response.raise_for_status()
+            data = response.json()
+            
+            clients_data = data.get('data', [])
+            network_obj = ipaddress.IPv4Network(net_subnet, strict=False)
+            
+            # Filter clients by network name and collect stats
+            network_clients = []
+            total_rx = 0
+            total_tx = 0
+            wired_count = 0
+            wireless_count = 0
+            used_ips = set()
+            
+            for client in clients_data:
+                if client.get('last_connection_network_name') == name:
+                    network_clients.append(client)
+                    total_rx += client.get('rx_bytes', 0)
+                    total_tx += client.get('tx_bytes', 0)
+                    
+                    if client.get('is_wired', False):
+                        wired_count += 1
+                    else:
+                        wireless_count += 1
+                    
+                    # Track used IPs
+                    ip_str = client.get('last_ip')
+                    if ip_str:
+                        try:
+                            used_ips.add(ipaddress.IPv4Address(ip_str))
+                        except:
+                            pass
+            
+            client_count = len(network_clients)
+            
+            # Find next available IP if DHCP is enabled
+            next_ip = "N/A"
+            if dhcp_enabled and dhcp_start != 'N/A':
+                dhcp_start_ip = ipaddress.IPv4Address(dhcp_start)
+                dhcp_end_ip = ipaddress.IPv4Address(dhcp_end)
+                
+                for ip in network_obj.hosts():
+                    if ip < dhcp_start_ip or ip > dhcp_end_ip:
+                        continue
+                    if ip not in used_ips:
+                        next_ip = str(ip)
+                        break
+            
+            # Format bandwidth
+            def format_bytes(bytes_val):
+                if bytes_val >= 1e9:
+                    return f"{bytes_val / 1e9:.2f} GB"
+                elif bytes_val >= 1e6:
+                    return f"{bytes_val / 1e6:.2f} MB"
+                elif bytes_val >= 1e3:
+                    return f"{bytes_val / 1e3:.2f} KB"
+                return f"{bytes_val} B"
+            
+            # Build response
+            output = [
+                f"Network: {name}",
+                f"Subnet: {net_subnet}",
+                f"VLAN ID: {vlan_id}",
+                f"DHCP: {'Enabled' if dhcp_enabled else 'Disabled'}",
+            ]
+            
+            if dhcp_enabled:
+                output.append(f"DHCP Range: {dhcp_start} - {dhcp_end}")
+            
+            output.extend([
+                f"Active Clients: {client_count} (Wired: {wired_count}, Wireless: {wireless_count})",
+                f"Total RX: {format_bytes(total_rx)}",
+                f"Total TX: {format_bytes(total_tx)}",
+                f"Next Available IP: {next_ip}"
+            ])
+            
+            return "\n".join(output)
+        
+        elif query_type == "next_ip":
+            # Find next available IP in subnet
+            if not subnet:
+                return "Error: subnet parameter required for next_ip query (e.g., '192.168.1.0/24' or network name like 'Main-Network')"
+            
+            import ipaddress
+            
+            # Get network config first to resolve names and get DHCP ranges
+            url_net = f"{base_url}/proxy/network/api/s/{site_id}/rest/networkconf"
+            response_net = session.get(url_net, timeout=10, verify=False)
+            response_net.raise_for_status()
+            net_data = response_net.json()
+            
+            # Check if subnet is a name instead of CIDR
+            resolved_subnet = None
+            dhcp_start = None
+            dhcp_end = None
+            
+            # First, try to match as network name
+            for net in net_data.get('data', []):
+                net_name = net.get('name', '').lower()
+                if subnet.lower() == net_name or subnet.lower().replace('-', ' ') == net_name.replace('-', ' '):
+                    resolved_subnet = net.get('ip_subnet') or f"{net.get('network')}/{net.get('networkgroup', 24)}"
+                    dhcp_start = net.get('dhcpd_start')
+                    dhcp_end = net.get('dhcpd_stop')
+                    logger.info(f"Resolved network name '{subnet}' to {resolved_subnet}")
+                    break
+            
+            # If not found as name, try as CIDR and find matching network
+            if not resolved_subnet:
+                try:
+                    # Validate as CIDR
+                    test_network = ipaddress.IPv4Network(subnet, strict=False)
+                    resolved_subnet = str(test_network)
+                    
+                    # Find DHCP range for this subnet - normalize both for comparison
+                    for net in net_data.get('data', []):
+                        net_subnet = net.get('ip_subnet') or f"{net.get('network')}/{net.get('networkgroup', 24)}"
+                        # Normalize the network subnet for comparison
+                        try:
+                            net_normalized = str(ipaddress.IPv4Network(net_subnet, strict=False))
+                            if net_normalized == resolved_subnet:
+                                dhcp_start = net.get('dhcpd_start')
+                                dhcp_end = net.get('dhcpd_stop')
+                                logger.info(f"Matched subnet {resolved_subnet}, DHCP: {dhcp_start} - {dhcp_end}")
+                                break
+                        except:
+                            pass
+                except ValueError:
+                    return f"Invalid subnet format. Use CIDR notation (e.g., '192.168.1.0/24') or network name (e.g., 'IoT')"
+            
+            # Parse the resolved subnet
+            try:
+                network = ipaddress.IPv4Network(resolved_subnet, strict=False)
+            except ValueError as e:
+                return f"Invalid subnet format: {e}"
+            
+            if not dhcp_start or not dhcp_end:
+                logger.warning(f"No DHCP range found for {subnet}")
+                # Fall back to scanning whole subnet
+                dhcp_start_ip = list(network.hosts())[10]  # Start at .11 as fallback
+                dhcp_end_ip = list(network.hosts())[-2]
+            else:
+                dhcp_start_ip = ipaddress.IPv4Address(dhcp_start)
+                dhcp_end_ip = ipaddress.IPv4Address(dhcp_end)
+                logger.info(f"DHCP range: {dhcp_start} - {dhcp_end}")
+            
+            # Get all active clients (use v2 endpoint that works)
+            url = f"{base_url}/proxy/network/v2/api/site/{site_id}/clients/active"
+            response = session.get(url, timeout=10, verify=False)
+            response.raise_for_status()
+            data = response.json()
+            
+            # Get used IPs
+            used_ips = set()
+            clients = data if isinstance(data, list) else data.get('data', [])
+            for client in clients:
+                ip_str = client.get('ip')
+                if ip_str:
+                    try:
+                        ip = ipaddress.IPv4Address(ip_str)
+                        if ip in network:
+                            used_ips.add(ip)
+                    except:
+                        pass
+            
+            # Find next available IP within DHCP range
+            for ip in network.hosts():
+                if ip < dhcp_start_ip or ip > dhcp_end_ip:
+                    continue  # Skip IPs outside DHCP range
+                    
+                if ip not in used_ips:
+                    return f"Next available IP in {subnet}: {ip}"
+            
+            return f"No available IPs in DHCP range ({dhcp_start} - {dhcp_end})"
+        
+        elif query_type == "clients_active":
+            # Get active clients
+            url = f"{base_url}/proxy/network/api/s/{site_id}/stat/sta"
+            response = session.get(url, timeout=10, verify=False)
+            response.raise_for_status()
+            data = response.json()
+            
+            if not data.get('data'):
+                return "No active clients found."
+            
+            clients = data['data']
+            output = [f"Active Clients ({len(clients)} total):"]
+            
+            for client in clients[:15]:  # Limit for voice
+                hostname = client.get('hostname') or client.get('name', 'Unknown')
+                ip = client.get('ip', 'N/A')
+                is_wired = client.get('is_wired', False)
+                connection = "Wired" if is_wired else "Wireless"
+                output.append(f"- {hostname}: {ip} ({connection})")
+            
+            if len(clients) > 15:
+                output.append(f"... and {len(clients) - 15} more")
+            
+            return "\n".join(output)
+        
+        elif query_type == "clients_count":
+            url = f"{base_url}/proxy/network/api/s/{site_id}/stat/sta"
+            response = session.get(url, timeout=10, verify=False)
+            response.raise_for_status()
+            data = response.json()
+            
+            clients = data.get('data', [])
+            wired = sum(1 for c in clients if c.get('is_wired', False))
+            wireless = len(clients) - wired
+            
+            return f"Network Clients:\n- Total: {len(clients)}\n- Wired: {wired}\n- Wireless: {wireless}"
+        
+        elif query_type == "clients_bandwidth":
+            # Get clients and sort by bandwidth usage
+            url = f"{base_url}/proxy/network/api/s/{site_id}/stat/sta"
+            response = session.get(url, timeout=10, verify=False)
+            response.raise_for_status()
+            data = response.json()
+            
+            if not data.get('data'):
+                return "No active clients found."
+            
+            clients = data['data']
+            # Sort by total bandwidth (tx + rx)
+            clients_sorted = sorted(
+                clients,
+                key=lambda c: c.get('tx_bytes', 0) + c.get('rx_bytes', 0),
+                reverse=True
+            )
+            
+            output = ["Top Bandwidth Users:"]
+            for client in clients_sorted[:10]:
+                hostname = client.get('hostname') or client.get('name', 'Unknown')
+                tx_bytes = client.get('tx_bytes', 0)
+                rx_bytes = client.get('rx_bytes', 0)
+                total_mb = (tx_bytes + rx_bytes) / (1024 * 1024)
+                output.append(f"- {hostname}: {total_mb:.1f} MB")
+            
+            return "\n".join(output)
+        
+        elif query_type == "network_info":
+            # Get network configuration - Use legacy API (v2 doesn't work for this)
+            url = f"{base_url}/proxy/network/api/s/{site_id}/rest/networkconf"
+            response = session.get(url, timeout=10, verify=False)
+            response.raise_for_status()
+            data = response.json()
+            
+            if not data.get('data'):
+                return "No network configuration found."
+            
+            networks = data['data']
+            output = [f"Network Configuration ({len(networks)} networks):"]
+            
+            for net in networks[:10]:  # Limit output
+                name = net.get('name', 'Unknown')
+                purpose = net.get('purpose', 'corporate')
+                subnet = net.get('ip_subnet') or f"{net.get('network', 'N/A')}/{net.get('networkgroup', 24)}"
+                vlan = net.get('vlan') or net.get('vlan_id', 'Default')
+                dhcp_enabled = net.get('dhcpd_enabled', False)
+                output.append(f"- {name} ({purpose}): {subnet}, VLAN {vlan}, DHCP: {'Yes' if dhcp_enabled else 'No'}")
+            
+            return "\n".join(output)
+        
+        elif query_type == "wan_ip":
+            # Get WAN IP from health status - this is where Cloud Gateway Max stores it
+            url = f"{base_url}/proxy/network/api/s/{site_id}/stat/health"
+            response = session.get(url, timeout=10, verify=False)
+            response.raise_for_status()
+            data = response.json()
+            
+            if not data.get('data'):
+                return "Could not retrieve WAN IP from UniFi Controller"
+            
+            # Find the WAN subsystem in health data
+            for subsystem in data['data']:
+                if subsystem.get('subsystem') == 'wan':
+                    wan_ip = subsystem.get('wan_ip')
+                    if wan_ip:
+                        logger.info(f"Found WAN IP: {wan_ip}")
+                        return f"WAN IP: {wan_ip}"
+            
+            logger.warning("No WAN subsystem found in health data")
+            return "Could not retrieve WAN IP from UniFi Controller"
+        
+        elif query_type == "firewall_rules":
+            # Get firewall rules
+            url = f"{base_url}/proxy/network/api/s/{site_id}/rest/firewallrule"
+            response = session.get(url, timeout=10, verify=False)
+            response.raise_for_status()
+            data = response.json()
+            
+            if not data.get('data'):
+                return "No firewall rules configured."
+            
+            rules = data['data']
+            enabled_rules = [r for r in rules if r.get('enabled', False)]
+            
+            output = [f"Firewall Rules ({len(enabled_rules)} enabled, {len(rules)} total):"]
+            
+            for rule in enabled_rules[:10]:
+                name = rule.get('name', 'Unnamed')
+                action = rule.get('action', 'N/A')
+                protocol = rule.get('protocol', 'all')
+                output.append(f"- {name}: {action} {protocol}")
+            
+            if len(enabled_rules) > 10:
+                output.append(f"... and {len(enabled_rules) - 10} more")
+            
+            return "\n".join(output)
+        
+        elif query_type == "port_forwarding":
+            # Get port forwarding rules
+            url = f"{base_url}/proxy/network/api/s/{site_id}/rest/portforward"
+            response = session.get(url, timeout=10, verify=False)
+            response.raise_for_status()
+            data = response.json()
+            
+            if not data.get('data'):
+                return "No port forwarding rules configured."
+            
+            rules = data['data']
+            enabled_rules = [r for r in rules if r.get('enabled', False)]
+            
+            output = [f"Port Forwarding Rules ({len(enabled_rules)} enabled):"]
+            
+            for rule in enabled_rules:
+                name = rule.get('name', 'Unnamed')
+                dst_port = rule.get('dst_port', 'N/A')
+                fwd_port = rule.get('fwd_port', dst_port)
+                fwd_ip = rule.get('fwd', 'N/A')
+                protocol = rule.get('proto', 'tcp')
+                output.append(f"- {name}: {dst_port} → {fwd_ip}:{fwd_port} ({protocol})")
+            
+            if not enabled_rules:
+                return "No active port forwarding rules."
+            
+            return "\n".join(output)
+        
+        elif query_type == "device_info":
+            # Get UniFi device information (USG/UDM/switches/APs)
+            url = f"{base_url}/proxy/network/api/s/{site_id}/stat/device"
+            response = session.get(url, timeout=10, verify=False)
+            response.raise_for_status()
+            data = response.json()
+            
+            if not data.get('data'):
+                return "No UniFi devices found."
+            
+            devices = data['data']
+            output = [f"UniFi Devices ({len(devices)} total):"]
+            
+            for device in devices:
+                name = device.get('name', 'Unknown')
+                model = device.get('model', 'N/A')
+                version = device.get('version', 'N/A')
+                state = device.get('state', 0)
+                status = "Online" if state == 1 else "Offline"
+                uptime = device.get('uptime', 0)
+                uptime_hours = uptime // 3600
+                output.append(f"- {name} ({model}): {status}, Uptime: {uptime_hours}h, v{version}")
+            
+            return "\n".join(output)
+        
+        elif query_type == "client_signal":
+            # Get signal strength for a specific client
+            if not client_id:
+                return "Error: client_id required (hostname, IP, or MAC)"
+            
+            url = f"{base_url}/proxy/network/api/s/{site_id}/stat/sta"
+            response = session.get(url, timeout=10, verify=False)
+            response.raise_for_status()
+            clients = response.json().get('data', [])
+            
+            # Search for client by hostname, IP, or MAC
+            client_id_lower = client_id.lower()
+            found_client = None
+            for client in clients:
+                if (client_id_lower in (client.get('hostname', '').lower(), 
+                                       client.get('last_ip', '').lower(),
+                                       client.get('mac', '').lower())):
+                    found_client = client
+                    break
+            
+            if not found_client:
+                return f"Client '{client_id}' not found in network"
+            
+            hostname = found_client.get('hostname', 'Unknown')
+            signal = found_client.get('signal', 'N/A')
+            rssi = found_client.get('rssi', 'N/A')
+            noise = found_client.get('noise', 'N/A')
+            channel = found_client.get('channel', 'N/A')
+            is_wired = found_client.get('is_wired', False)
+            
+            if is_wired:
+                return f"{hostname}: Wired connection (no wireless signal)"
+            
+            return f"{hostname} Signal:\n- Signal: {signal} dBm\n- RSSI: {rssi}\n- Noise: {noise} dBm\n- Channel: {channel}"
+        
+        elif query_type == "client_details":
+            # Get full details for a specific client
+            if not client_id:
+                return "Error: client_id required (hostname, IP, or MAC)"
+            
+            url = f"{base_url}/proxy/network/api/s/{site_id}/stat/sta"
+            response = session.get(url, timeout=10, verify=False)
+            response.raise_for_status()
+            clients = response.json().get('data', [])
+            
+            # Search for client
+            client_id_lower = client_id.lower()
+            found_client = None
+            for client in clients:
+                if (client_id_lower in (client.get('hostname', '').lower(), 
+                                       client.get('last_ip', '').lower(),
+                                       client.get('mac', '').lower())):
+                    found_client = client
+                    break
+            
+            if not found_client:
+                return f"Client '{client_id}' not found in network"
+            
+            # Format uptime
+            uptime = found_client.get('uptime', 0)
+            uptime_hours = uptime // 3600
+            uptime_mins = (uptime % 3600) // 60
+            
+            # Format bandwidth
+            rx_gb = found_client.get('rx_bytes', 0) / 1e9
+            tx_gb = found_client.get('tx_bytes', 0) / 1e9
+            
+            output = [
+                f"Client: {found_client.get('hostname', 'Unknown')}",
+                f"IP: {found_client.get('last_ip', 'N/A')}",
+                f"MAC: {found_client.get('mac', 'N/A')}",
+                f"Network: {found_client.get('last_connection_network_name', 'Unknown')}",
+                f"Connection: {'Wired' if found_client.get('is_wired') else 'Wireless'}",
+                f"Uptime: {uptime_hours}h {uptime_mins}m",
+                f"Bandwidth: RX {rx_gb:.2f} GB, TX {tx_gb:.2f} GB"
+            ]
+            
+            if not found_client.get('is_wired'):
+                output.append(f"Signal: {found_client.get('signal', 'N/A')} dBm")
+            
+            return "\n".join(output)
+        
+        elif query_type == "top_bandwidth":
+            # Get top bandwidth users
+            url = f"{base_url}/proxy/network/api/s/{site_id}/stat/sta"
+            response = session.get(url, timeout=10, verify=False)
+            response.raise_for_status()
+            clients = response.json().get('data', [])
+            
+            # Calculate total bandwidth and sort
+            bandwidth_clients = []
+            for client in clients:
+                rx = client.get('rx_bytes', 0)
+                tx = client.get('tx_bytes', 0)
+                total = rx + tx
+                if total > 0:
+                    bandwidth_clients.append({
+                        'hostname': client.get('hostname', 'Unknown'),
+                        'ip': client.get('last_ip', 'N/A'),
+                        'rx': rx,
+                        'tx': tx,
+                        'total': total
+                    })
+            
+            bandwidth_clients.sort(key=lambda x: x['total'], reverse=True)
+            
+            output = ["Top Bandwidth Users:"]
+            for i, client in enumerate(bandwidth_clients[:10], 1):
+                rx_gb = client['rx'] / 1e9
+                tx_gb = client['tx'] / 1e9
+                output.append(f"{i}. {client['hostname']} ({client['ip']}): RX {rx_gb:.2f} GB, TX {tx_gb:.2f} GB")
+            
+            return "\n".join(output)
+        
+        elif query_type == "recent_alerts":
+            # Get recent alerts (last 24h)
+            url = f"{base_url}/proxy/network/api/s/{site_id}/stat/alarm"
+            response = session.get(url, timeout=10, verify=False)
+            response.raise_for_status()
+            alerts = response.json().get('data', [])
+            
+            # Filter last 24h
+            from datetime import datetime, timedelta
+            day_ago = (datetime.now() - timedelta(days=1)).timestamp() * 1000
+            recent = [a for a in alerts if a.get('time', 0) > day_ago]
+            
+            if not recent:
+                return "No alerts in the last 24 hours"
+            
+            output = [f"Recent Alerts ({len(recent)} in last 24h):"]
+            for i, alert in enumerate(recent[:10], 1):
+                time_ms = alert.get('time', 0)
+                time_str = datetime.fromtimestamp(time_ms/1000).strftime('%H:%M')
+                msg = alert.get('msg', 'Unknown alert')
+                output.append(f"{i}. [{time_str}] {msg[:100]}")
+            
+            if len(recent) > 10:
+                output.append(f"... and {len(recent) - 10} more")
+            
+            return "\n".join(output)
+        
+        elif query_type == "device_status":
+            # Get all device statuses
+            url = f"{base_url}/proxy/network/api/s/{site_id}/stat/device"
+            response = session.get(url, timeout=10, verify=False)
+            response.raise_for_status()
+            devices = response.json().get('data', [])
+            
+            output = [f"UniFi Devices ({len(devices)} total):"]
+            for device in devices:
+                name = device.get('name', 'Unknown')
+                state = device.get('state', 0)
+                status = 'Online' if state == 1 else 'Offline'
+                model = device.get('model', 'N/A')
+                version = device.get('version', 'N/A')
+                uptime = device.get('uptime', 0)
+                uptime_hours = uptime // 3600
+                output.append(f"- {name} ({model}): {status}, v{version}, Uptime: {uptime_hours}h")
+            
+            return "\n".join(output)
+        
+        elif query_type == "system_health":
+            # Get overall system health
+            url = f"{base_url}/proxy/network/api/s/{site_id}/stat/health"
+            response = session.get(url, timeout=10, verify=False)
+            response.raise_for_status()
+            health = response.json().get('data', [])
+            
+            output = ["System Health:"]
+            for subsystem in health:
+                name = subsystem.get('subsystem', 'unknown').upper()
+                status = subsystem.get('status', 'unknown').upper()
+                output.append(f"- {name}: {status}")
+                
+                # Add extra details
+                if name == 'WAN':
+                    wan_ip = subsystem.get('wan_ip', 'N/A')
+                    output[-1] += f" (IP: {wan_ip})"
+                elif name == 'WLAN':
+                    users = subsystem.get('num_user', 0)
+                    output[-1] += f" ({users} clients)"
+            
+            return "\n".join(output)
+        
+        elif query_type == "port_forwards":
+            # List port forwarding rules
+            url = f"{base_url}/proxy/network/api/s/{site_id}/rest/portforward"
+            response = session.get(url, timeout=10, verify=False)
+            response.raise_for_status()
+            forwards = response.json().get('data', [])
+            
+            if not forwards:
+                return "No port forwarding rules configured"
+            
+            output = [f"Port Forwarding Rules ({len(forwards)} total):"]
+            for rule in forwards:
+                name = rule.get('name', 'Unnamed')
+                enabled = rule.get('enabled', False)
+                proto = rule.get('proto', 'tcp').upper()
+                dst_port = rule.get('dst_port', 'N/A')
+                fwd_port = rule.get('fwd_port', 'N/A')
+                status = 'Enabled' if enabled else 'Disabled'
+                output.append(f"- {name}: {proto}/{dst_port} -> {fwd_port} ({status})")
+            
+            return "\n".join(output)
+        
+        else:
+            return f"Unknown query type: {query_type}. Supported: dhcp_leases, dhcp_stats, next_ip, clients_active, clients_count, clients_bandwidth, network_info, firewall_rules, port_forwarding, device_info"
+    
+    except requests.exceptions.HTTPError as e:
+        if e.response.status_code == 401:
+            return "UniFi authentication failed. Check your API token or credentials in add-on configuration."
+        return f"UniFi API error: {e.response.status_code} - {e.response.text[:200]}"
+    except Exception as e:
+        logger.error(f"UniFi Controller query error: {e}", exc_info=True)
+        return f"UniFi query failed: {e}"
+
+
 # ===== CAMERA ANALYSIS (GEMINI VISION) =====
 
 def analyze_camera(camera_entity: str, question: str = "What do you see in this image?"):
@@ -1339,8 +2372,9 @@ def analyze_camera(camera_entity: str, question: str = "What do you see in this 
     if not config.HA_URL or not config.HA_TOKEN:
         return "Error: Home Assistant connection not configured."
     
-    if not config.GEMINI_API_KEY:
-        return "Error: Gemini API key not configured for vision analysis."
+    # Check if either Vertex AI or AI Studio is configured
+    if not config.GCP_PROJECT_ID and not config.GEMINI_API_KEY:
+        return "Error: Neither Vertex AI (GCP Project) nor AI Studio (API key) is configured for vision analysis."
     
     try:
         # Step 1: Get camera snapshot from Home Assistant
@@ -1362,46 +2396,73 @@ def analyze_camera(camera_entity: str, question: str = "What do you see in this 
         snapshot_response.raise_for_status()
         
         image_data = snapshot_response.content
-        image_base64 = base64.b64encode(image_data).decode('utf-8')
         
-        # Detect content type
-        content_type = snapshot_response.headers.get('Content-Type', 'image/jpeg')
+        # Step 2: Send to Gemini Vision
+        # Use Vertex AI if configured, otherwise use AI Studio
+        if config.GCP_PROJECT_ID:
+            # Vertex AI mode
+            import vertexai
+            from vertexai.generative_models import GenerativeModel, Part
+            import os
+            
+            # Initialize Vertex AI
+            credentials_path = "/data/gcp-credentials.json"
+            if os.path.exists(credentials_path):
+                os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = credentials_path
+            
+            vertexai.init(project=config.GCP_PROJECT_ID, location="us-central1")
+            
+            # Use Gemini 2.0 Flash for vision
+            model = GenerativeModel("gemini-2.0-flash-exp")
+            
+            # Create image part
+            image_part = Part.from_data(image_data, mime_type="image/jpeg")
+            
+            logger.info(f"Sending image to Vertex AI Gemini Vision for analysis")
+            response = model.generate_content([question, image_part])
+            
+            return f"Camera analysis for {camera_entity}:\n{response.text}"
         
-        # Step 2: Send to Gemini Vision API
-        gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={config.GEMINI_API_KEY}"
-        
-        vision_payload = {
-            "contents": [{
-                "parts": [
-                    {"text": question},
-                    {
-                        "inline_data": {
-                            "mime_type": content_type,
-                            "data": image_base64
+        else:
+            # AI Studio mode (original implementation)
+            image_base64 = base64.b64encode(image_data).decode('utf-8')
+            content_type = snapshot_response.headers.get('Content-Type', 'image/jpeg')
+            
+            gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={config.GEMINI_API_KEY}"
+            
+            vision_payload = {
+                "contents": [{
+                    "parts": [
+                        {"text": question},
+                        {
+                            "inline_data": {
+                                "mime_type": content_type,
+                                "data": image_base64
+                            }
                         }
-                    }
-                ]
-            }],
-            "generationConfig": {
-                "temperature": 0.4,
-                "maxOutputTokens": 512
+                    ]
+                }],
+                "generationConfig": {
+                    "temperature": 0.4,
+                    "maxOutputTokens": 512
+                }
             }
-        }
-        
-        logger.info(f"Sending image to Gemini Vision for analysis")
-        vision_response = requests.post(gemini_url, json=vision_payload, timeout=30)
-        vision_response.raise_for_status()
-        
-        result = vision_response.json()
-        
-        # Extract the text response
-        if 'candidates' in result and result['candidates']:
-            text_parts = result['candidates'][0].get('content', {}).get('parts', [])
-            if text_parts:
-                analysis = text_parts[0].get('text', 'No analysis available.')
-                return f"Camera analysis for {camera_entity}:\n{analysis}"
-        
-        return "Could not get analysis from Gemini Vision."
+            
+            
+            logger.info(f"Sending image to AI Studio Gemini Vision for analysis")
+            vision_response = requests.post(gemini_url, json=vision_payload, timeout=30)
+            vision_response.raise_for_status()
+            
+            result = vision_response.json()
+            
+            # Extract the text response
+            if 'candidates' in result and result['candidates']:
+                text_parts = result['candidates'][0].get('content', {}).get('parts', [])
+                if text_parts:
+                    analysis = text_parts[0].get('text', 'No analysis available.')
+                    return f"Camera analysis for {camera_entity}:\n{analysis}"
+            
+            return "Could not get analysis from Gemini Vision."
     
     except requests.exceptions.HTTPError as e:
         if e.response.status_code == 404:
@@ -1557,12 +2618,46 @@ def get_travel_time(origin: str, destination: str, mode: str = "driving"):
     Uses Google Maps Distance Matrix API.
     
     Args:
-        origin: Starting location (address or place name)
+        origin: Starting location (address or place name, or 'home' to use saved location)
         destination: Destination (address or place name)
         mode: Travel mode - "driving", "walking", "bicycling", "transit"
     """
     if not config.GOOGLE_MAPS_API_KEY:
         return "Error: Google Maps API key not configured. Add google_maps_api_key to add-on configuration."
+    
+    # Resolve 'home' to saved location
+    from memory import Memory
+    memory = Memory()
+    
+    # Helper function to resolve location names
+    def resolve_location(location: str) -> str:
+        """Check if location is a saved preference and resolve it to actual address."""
+        # First try exact match with common location prefixes
+        for prefix in ["", "location_", "address_"]:
+            saved = memory.get_preference(f"{prefix}{location.lower()}")
+            if saved:
+                logger.info(f"Resolved '{location}' to saved location: {saved}")
+                return saved
+        
+        # Try checking if it's stored as "[name]_location" 
+        saved = memory.get_preference(f"{location.lower()}_location")
+        if saved:
+            logger.info(f"Resolved '{location}' to saved location: {saved}")
+            return saved
+            
+        # Return original if no match found
+        return location
+    
+    # Resolve origin and destination
+    origin = resolve_location(origin)
+    destination = resolve_location(destination)
+    
+    # Check if we still have unresolved common location keywords
+    if origin.lower() == "home":
+        return "I don't have your home location saved yet, Sir. Please tell me where you live first, or provide a specific starting address."
+    
+    if destination.lower() == "home":
+        return "I don't have your home location saved yet, Sir."
     
     try:
         url = "https://maps.googleapis.com/maps/api/distancematrix/json"
@@ -1608,6 +2703,316 @@ def get_travel_time(origin: str, destination: str, mode: str = "driving"):
         return f"Failed to get travel time: {e}"
 
 
+def _get_calendar_service():
+    """Helper to get authenticated Google Calendar service."""
+    try:
+        from googleapiclient.discovery import build
+        from google.oauth2 import service_account
+        
+        # Use same service account as Vertex AI
+        credentials_path = os.path.join(os.path.dirname(__file__), ".cache", "google_credentials.json")
+        
+        if not os.path.exists(credentials_path):
+            return None,  "Google service account credentials not found. Check GCP configuration."
+        
+        SCOPES = ['https://www.googleapis.com/auth/calendar']
+        credentials = service_account.Credentials.from_service_account_file(
+            credentials_path, scopes=SCOPES)
+        
+        service = build('calendar', 'v3', credentials=credentials)
+        return service, None
+        
+    except Exception as e:
+        logger.error(f"Calendar service error: {e}", exc_info=True)
+        return None, f"Failed to authenticate with Google Calendar: {e}"
+
+
+def add_calendar_event(title: str, date_time: str, duration_minutes: int = 60, description: str = ""):
+    """
+    Add an event to Google Calendar.
+    
+    Args:
+        title: Event title/summary
+        date_time: Natural language or ISO format (e.g., "tomorrow at 2pm", "2024-12-25 14:00")
+        duration_minutes: Event duration in minutes (default: 60)
+        description: Optional event description
+    
+    Returns:
+        Confirmation message with event details
+    """
+    if not config.GOOGLE_CALENDAR_ID:
+        return "Error: Google Calendar ID not configured. Add google_calendar_id to add-on configuration."
+    
+    service, error = _get_calendar_service()
+    if error:
+        return f"Error: {error}"
+    
+    try:
+        from datetime import datetime, timedelta
+        import dateparser
+        
+        # Parse date/time
+        parsed_dt = dateparser.parse(date_time, settings={'PREFER_DATES_FROM': 'future'})
+        if not parsed_dt:
+            return f"Could not parse date/time: '{date_time}'. Try formats like 'tomorrow at 2pm' or '2024-12-25 14:00'"
+        
+        # Create event
+        start_time = parsed_dt.isoformat()
+        end_time = (parsed_dt + timedelta(minutes=duration_minutes)).isoformat()
+        
+        event = {
+            'summary': title,
+            'description': description,
+            'start': {
+                'dateTime': start_time,
+                'timeZone': 'Europe/London',  # Adjust to your timezone
+            },
+            'end': {
+                'dateTime': end_time,
+                'timeZone': 'Europe/London',
+            },
+        }
+        
+        created_event = service.events().insert(calendarId=config.GOOGLE_CALENDAR_ID, body=event).execute()
+        
+        logger.info(f"Created calendar event: {title} at {parsed_dt}")
+        return f"Added '{title}' to calendar on {parsed_dt.strftime('%A, %B %d at %I:%M %p')}"
+        
+    except Exception as e:
+        logger.error(f"Calendar event creation error: {e}", exc_info=True)
+        return f"Failed to create event: {e}"
+
+
+def list_calendar_events(days_ahead: int = 7):
+    """
+    List upcoming calendar events.
+    
+    Args:
+        days_ahead: Number of days to look ahead (default: 7)
+    
+    Returns:
+        Formatted list of upcoming events
+    """
+    if not config.GOOGLE_CALENDAR_ID:
+        return "Error: Google Calendar ID not configured. Add google_calendar_id to add-on configuration."
+    
+    service, error = _get_calendar_service()
+    if error:
+        return f"Error: {error}"
+    
+    try:
+        from datetime import datetime, timedelta
+        
+        # Get events from now to days_ahead
+        now = datetime.utcnow().isoformat() + 'Z'
+        end_date = (datetime.utcnow() + timedelta(days=days_ahead)).isoformat() + 'Z'
+        
+        events_result = service.events().list(
+            calendarId=config.GOOGLE_CALENDAR_ID,
+            timeMin=now,
+            timeMax=end_date,
+            maxResults=10,
+            singleEvents=True,
+            orderBy='startTime'
+        ).execute()
+        
+        events = events_result.get('items', [])
+        
+        if not events:
+            return f"No upcoming events in the next {days_ahead} days"
+        
+        output = [f"Upcoming events ({len(events)}):"]
+        for event in events:
+            start = event['start'].get('dateTime', event['start'].get('date'))
+            summary = event.get('summary', 'No title')
+            
+            # Parse and format time
+            try:
+                if 'T' in start:  # DateTime
+                    dt = datetime.fromisoformat(start.replace('Z', '+00:00'))
+                    time_str = dt.strftime('%a, %b %d at %I:%M %p')
+                else:  # All-day event
+                    dt = datetime.fromisoformat(start)
+                    time_str = dt.strftime('%a, %b %d (all day)')
+                
+                output.append(f"- {summary}: {time_str}")
+            except:
+                output.append(f"- {summary}: {start}")
+        
+        return "\n".join(output)
+        
+    except Exception as e:
+        logger.error(f"Calendar list error: {e}", exc_info=True)
+        return f"Failed to list events: {e}"
+
+
+def create_location_reminder(message: str, location: str = "home", person_entity: str = "person.user"):
+    """
+    Create a location-based reminder using Home Assistant automation.
+    The automation triggers once when the person arrives at the location, then deletes itself.
+    
+    Args:
+        message: Reminder message
+        location: Target location state (default: "home")
+        person_entity: Person entity to track (default: "person.user")
+    
+    Returns:
+        Confirmation message
+    """
+    if not config.HA_URL or not config.HA_TOKEN:
+        return "Error: Home Assistant connection not configured"
+    
+    try:
+        import uuid
+        import requests
+        
+        # Generate unique automation ID
+        automation_id = f"reminder_{uuid.uuid4().hex[:8]}"
+        
+        # Get the person entity to find their device tracker
+        headers = {
+            "Authorization": f"Bearer {config.HA_TOKEN}",
+            "Content-Type": "application/json"
+        }
+        
+        # Query person entity state to get device_trackers
+        person_url = f"{config.HA_URL}/api/states/{person_entity}"
+        person_response = requests.get(person_url, headers=headers, timeout=10)
+        person_data = person_response.json()
+        
+        # Find mobile app device tracker from person's attributes
+        device_trackers = person_data.get('attributes', {}).get('source', [])
+        if isinstance(device_trackers, str):
+            device_trackers = [device_trackers]
+        
+        # Find mobile_app tracker
+        mobile_device = None
+        for tracker in device_trackers:
+            if 'mobile_app' in tracker or 'device_tracker' in tracker:
+                # Extract device name from tracker (e.g., device_tracker.pixel_7_pro -> pixel_7_pro)
+                device_name = tracker.split('.')[-1]
+                mobile_device = device_name
+                break
+        
+        # Fallback to person name if no mobile device found
+        if not mobile_device:
+            person_name = person_entity.split('.')[-1]
+            mobile_device = person_name
+        
+        mobile_notify_service = f"mobile_app_{mobile_device}"
+        logger.info(f"Location reminder: Using notify service {mobile_notify_service} for {person_entity}")
+        
+        # Create automation config
+        automation_config = {
+            "id": automation_id,
+            "alias": f"Reminder: {message[:50]}",
+            "description": f"One-time location reminder created by Jarvis",
+            "trigger": [
+                {
+                    "platform": "state",
+                    "entity_id": person_entity,
+                    "to": location
+                }
+            ],
+            "action": [
+                {
+                    "service": f"notify.{mobile_notify_service}",
+                    "data": {
+                        "title": "📍 Location Reminder",
+                        "message": message,
+                        "data": {
+                            "importance": "high",
+                            "priority": "high",
+                            "notification_icon": "mdi:bell-ring"
+                        }
+                    }
+                },
+                {
+                    "service": "tts.speak",
+                    "target": {
+                        "entity_id": "tts.piper"
+                    },
+                    "data": {
+                        "message": f"Reminder: {message}",
+                        "media_player_entity_id": "media_player.everywhere"  # Adjust to your media player
+                    }
+                },
+                {
+                    "delay": "00:00:05"
+                },
+                {
+                    "service": "automation.turn_off",
+                    "target": {
+                        "entity_id": f"automation.{automation_id}"
+                    }
+                },
+                {
+                    "service": "automation.delete",
+                    "data": {
+                        "entity_id": f"automation.{automation_id}"
+                    }
+                }
+            ],
+            "mode": "single"
+        }
+        
+        # Create automation via HA API
+        headers = {
+            "Authorization": f"Bearer {config.HA_TOKEN}",
+            "Content-Type": "application/json"
+        }
+        
+        # Use automations.yaml endpoint
+        url = f"{config.HA_URL}/api/services/automation/reload"
+        
+        # First, we need to add to automations.yaml via file write service
+        # But HA API doesn't allow direct automation creation, so we'll use the config API
+        
+        # Alternative: Use script service to create a one-shot script instead
+        script_id = f"reminder_{uuid.uuid4().hex[:8]}"
+        
+        # Actually, let's use input_boolean as a flag and a separate automation
+        # Best approach: Use the automation.trigger service with a helper
+        
+        # Simpler: Just create a persistent notification that checks location
+        # But we want it to trigger automatically...
+        
+        # BEST: Use HA's built-in reminder integration if available, or create via automation API
+        # Since we can't directly create automations via API easily, let's use a helper approach:
+        
+        # Create via the /api/config/automation/config/{id} endpoint
+        automation_url = f"{config.HA_URL}/api/config/automation/config/{automation_id}"
+        
+        response = requests.post(automation_url, headers=headers, json=automation_config, timeout=10)
+        response.raise_for_status()
+        
+        logger.info(f"Created location reminder automation: {automation_id}")
+        return f"I'll remind you to '{message}' when you arrive {location}"
+        
+    except Exception as e:
+        logger.error(f"Location reminder error: {e}", exc_info=True)
+        
+        # Fallback: Create a simpler notification-based reminder
+        try:
+            # Just create a persistent notification as fallback
+            url = f"{config.HA_URL}/api/services/persistent_notification/create"
+            headers = {
+                "Authorization": f"Bearer {config.HA_TOKEN}",
+                "Content-Type": "application/json"
+            }
+            data = {
+                "title": "Reminder Pending",
+                "message": f"Remind: {message} (when you get {location})",
+                "notification_id": f"reminder_{uuid.uuid4().hex[:8]}"
+            }
+            
+            requests.post(url, headers=headers, json=data, timeout=10)
+            return f"Created reminder: '{message}' (manual notification - automatic trigger unavailable)"
+            
+        except:
+            return f"Failed to create location reminder: {e}"
+
+
 def set_timer(seconds: int):
     """
     Set a timer for a specific number of seconds.
@@ -1644,7 +3049,7 @@ def save_preference(name: str, value: str):
     Use this when the user asks Jarvis to remember something.
     
     Args:
-        name: The preference name/key (e.g., "favorite_color", "phone_number", "wife_name")
+        name: The preference name/key (e.g., "favorite_color", "phone_number", "spouse_name")
         value: The value to remember
         
     Returns:
@@ -1699,6 +3104,50 @@ def list_all_preferences():
         logger.error(f"Error listing preferences: {e}", exc_info=True)
         return f"Failed to list preferences: {e}"
 
+def delete_preference(name: str):
+    """
+    Delete a saved preference from memory.
+    Use when user wants to forget or remove a saved preference.
+    
+    Args:
+        name: The preference name/key to delete
+        
+    Returns:
+        Confirmation message
+    """
+    try:
+        memory = _get_memory()
+        
+        # Check if preference exists with exact match first
+        value = memory.get_preference(name)
+        if value is not None:
+            key_to_delete = name
+        else:
+            # Try fuzzy match - find keys containing the search term
+            all_prefs = memory.get_all_preferences()
+            matches = [k for k in all_prefs.keys() if name.lower() in k.lower() or k.lower() in name.lower()]
+            
+            if not matches:
+                return f"No preference found matching '{name}'. Use 'list all preferences' to see exact names."
+            elif len(matches) == 1:
+                key_to_delete = matches[0]
+                logger.info(f"Fuzzy matched '{name}' to '{key_to_delete}'")
+            else:
+                # Multiple matches
+                match_list = '\n'.join(f"  - {k}" for k in matches)
+                return f"Multiple preferences match '{name}':\n{match_list}\n\nPlease be more specific."
+        
+        # Delete from database
+        cursor = memory.conn.cursor()
+        cursor.execute("DELETE FROM preferences WHERE key = ?", (key_to_delete,))
+        memory.conn.commit()
+        
+        logger.info(f"Deleted preference: {key_to_delete}")
+        return f"Successfully deleted preference: {key_to_delete}"
+    except Exception as e:
+        logger.error(f"Error deleting preference: {e}", exc_info=True)
+        return f"Failed to delete preference: {e}"
+
 def get_current_time():
     """
     Get the current date and time.
@@ -1707,11 +3156,10 @@ def get_current_time():
     Returns:
         Current date and time with timezone
     """
-    from datetime import datetime
-    import pytz
+    from datetime import datetime, timezone
     
-    # Get current time in UTC and local timezone
-    now_utc = datetime.now(pytz.UTC)
+    # Get current time in UTC
+    now_utc = datetime.now(timezone.utc)
     now_local = datetime.now()
     
     return f"Current date and time: {now_local.strftime('%A, %B %d, %Y at %I:%M %p')} (UTC: {now_utc.strftime('%Y-%m-%d %H:%M:%S %Z')})"

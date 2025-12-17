@@ -1,366 +1,501 @@
-# Jarvis AI - Installation Guide
+# Jarvis AI - Complete Installation Guide
 
-Complete step-by-step instructions for installing and configuring Jarvis AI on your Home Assistant instance.
+This guide walks you through setting up Jarvis AI from scratch, including all optional integrations.
+
+---
+
+## Table of Contents
+
+1. [Prerequisites](#prerequisites)
+2. [Installation](#installation)
+3. [Core Configuration](#core-configuration)
+4. [Voice Pipeline Setup](#voice-pipeline-setup)
+5. [Optional Integrations](#optional-integrations)
+6. [Verification](#verification)
+7. [Wyoming Satellite Setup](#wyoming-satellite-setup-optional)
+
+---
 
 ## Prerequisites
 
 ### Required
 
-- ✅ Home Assistant instance (HA OS, Supervised, or Container)
-- ✅ Google Gemini API Key ([Get one here](https://makersuite.google.com/app/apikey))
-- ✅ SSH or direct file access to your HA instance
+- ✅ Home Assistant (HA OS, Supervised, or Container)
+- ✅ Google account for Gemini API
 
-### Optional (for full features)
+### Optional (for specific features)
 
-- Spotify Developer Account ([Create app here](https://developer.spotify.com/dashboard))
-- Radarr instance for movie management
-- Sonarr instance for TV series management
-- Raspberry Pi 5 (or similar) for Wyoming Satellite
+| Feature | Requirement |
+|---------|-------------|
+| Voice control | Whisper + Piper add-ons |
+| Music playback | Spotify Premium + Spotcast |
+| Movie management | Radarr instance |
+| TV management | Sonarr instance |
+| Network queries | UniFi Controller |
+| Wake word detection | Wyoming Satellite (e.g., Pi 5) |
 
 ---
 
-## Part 1: Install the Add-on
+## Installation
 
-### Option A: Via SSH (Recommended)
+### Option A: One-Click Install (Recommended)
 
-1. **SSH into your Home Assistant instance:**
+[![Add Repository to Home Assistant](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2FIron-Matrix4%2Fha-addons)
 
-   ```bash
-   ssh root@your-ha-ip
-   ```
+1. Click the button above to add the repository to Home Assistant
+2. Go to **Settings → Add-ons → Add-on Store**
+3. Find "Jarvis AI" in the list → Click **Install**
+4. Continue to [Core Configuration](#core-configuration)
 
-   > **Note**: Use your HA root password (NOT your HA web UI password!)
+### Option B: Add Repository Manually
 
-2. **Navigate to add-ons directory:**
+1. Go to **Settings → Add-ons → Add-on Store**
+2. Click ⋮ (top right) → **Repositories**
+3. Add: `https://github.com/Iron-Matrix4/ha-addons`
+4. Click **Add** → **Close**
+5. The repository will reload, find "Jarvis AI" → **Install**
 
-   ```bash
-   cd /addons
-   ```
+### Option C: Local Install (Development)
 
-   > If `/addons` doesn't exist, create it:
->
-   > ```bash
-   > mkdir -p /addons
-   > ```
+If you want to install from local files (for development or modification):
 
-3. **Copy the Jarvis add-on folder:**
-
-   From your Windows machine where the files are located:
-
-   ```powershell
-   # On your Windows machine (PowerShell)
-   scp -r "d:\AntiGravity\AG2\ha-addons\jarvis_ai" root@YOUR_HA_IP:/addons/
-   ```
-
-   Replace `YOUR_HA_IP` with your Home Assistant IP address.
-
-4. **Verify files are copied:**
+1. **SSH into Home Assistant**
 
    ```bash
-   ls /addons/jarvis_ai
+   ssh root@YOUR_HA_IP
    ```
 
-   You should see:
+2. **Create add-ons directory** (if it doesn't exist)
 
-   ```
-   config.yaml
-   Dockerfile
-   README.md
-   INSTALL.md
-   run.sh
-   requirements.txt
-   main.py
-   conversation.py
-   wyoming_handler.py
-   memory.py
-   tools.py
-   config_helper.py
+   ```bash
+   mkdir -p /addons
    ```
 
-5. **Set permissions:**
+3. **Copy the add-on** (from your machine)
+
+   ```bash
+   scp -r jarvis_ai root@YOUR_HA_IP:/addons/
+   ```
+
+4. **Set permissions**
 
    ```bash
    chmod +x /addons/jarvis_ai/run.sh
    ```
 
-### Option B: Via Home Assistant File Editor
-
-1. Install "File Editor" add-on from the official add-on store
-2. Use File Editor to create `/addons/jarvis_ai/` folder
-3. Copy each file from your `d:\AntiGravity\AG2\ha-addons\jarvis_ai\` folder
-4. Make sure all `.py` files and `.sh` files are copied correctly
+5. **Reload add-ons in HA**
+   - Settings → Add-ons → Add-on Store
+   - Click ⋮ (top right) → Reload
+   - Find "Jarvis AI" in "Local add-ons" section
 
 ---
 
-## Part 2: Install & Configure the Add-on
+## Core Configuration
 
-1. **Reload Add-ons:**
-   - Go to **Settings** → **Add-ons** → **Add-on Store**
-   - Click the ⋮ menu (top right) → **Reload**
-   - Wait a few seconds
+### Step 1: Get Gemini API Key
 
-2. **Find Jarvis AI:**
-   - Scroll down to " Local add-ons" section
-   - You should see "Jarvis AI Conversation Agent"
-   - Click on it
+1. Go to [Google AI Studio](https://aistudio.google.com/apikey)
+2. Sign in with your Google account
+3. Click "Create API Key"
+4. Copy the key
 
-3. **Install:**
-   - Click **Install**
-   - Wait for installation to complete (may take 2-5 minutes)
+### Step 2: Configure the Add-on
 
-4. **Configure:**
-   - Go to the **Configuration** tab
-   - Enter your **Gemini API Key** (required)
-
-   **Optional configurations:**
+1. Go to **Settings → Add-ons → Jarvis AI**
+2. Click **Configuration** tab
+3. Enter your Gemini API key:
 
    ```yaml
-   gemini_api_key: "YOUR_GEMINI_API_KEY_HERE"
-   spotify_client_id: "YOUR_SPOTIFY_CLIENT_ID"          # Optional
-   spotify_client_secret: "YOUR_SPOTIFY_CLIENT_SECRET"  # Optional
-   radarr_url: "http://192.168.1.100:7878"              # Optional
-   radarr_api_key: "YOUR_RADARR_API_KEY"                # Optional
-   sonarr_url: "http://192.168.1.100:8989"              # Optional
-   sonarr_api_key: "YOUR_SONARR_API_KEY"                # Optional
+   gemini_api_key: "YOUR_API_KEY_HERE"
    ```
 
-5. **Save Configuration:**
-   - Click **Save**
+4. Choose your model (optional):
 
-6. **Start the Add-on:**
-   - Go to the **Info** tab
-   - Toggle **Start on boot** (recommended)
-   - Click **Start**
-
-7. **Check Logs:**
-   - Go to the **Log** tab
-   - You should see:
-
-     ```
-     J.A.R.V.I.S. - Just A Rather Very Intelligent System
-     Starting Home Assistant Add-on...
-     Jarvis conversation brain initialized with Gemini 2.0 Flash
-     Jarvis conversation agent ready!
-     Waiting for connections from Home Assistant...
-     ```
-
----
-
-## Part 3: Set Up Voice Pipeline
-
-### A. Install Required Add-ons
-
-1. **Install Piper (TTS):**
-   - **Settings** → **Add-ons** → **Add-on Store**
-   - Search for "Piper"
-   - Install **Piper TTS**
-   - Configure with your custom Jarvis ONNX files:
-
-     ```
-     Voice model: /share/piper/jarvis-high.onnx
-     ```
-
-   - Start the add-on
-
-2. **Install Faster-Whisper (STT):**
-   - **Settings** → **Add-ons** → **Add-on Store**
-   - Search for "Whisper"
-   - Install **Faster-Whisper**
-   - Configuration (recommended):
-
-     ```yaml
-     model: medium
-     language: en
-     ```
-
-   - Start the add-on
-
-### B. Copy Piper Voice Model
-
-1. **Copy your Jarvis ONNX files to HA:**
-
-   ```powershell
-   # From Windows
-   scp "d:\AntiGravity\Jarvis\piper_models\jarvis-high.onnx" root@YOUR_HA_IP:/share/piper/
-   scp "d:\AntiGravity\Jarvis\piper_models\jarvis-high.onnx.json" root@YOUR_HA_IP:/share/piper/
+   ```yaml
+   gemini_model: "gemini-2.5-flash-lite"  # Fast and cheap
    ```
 
-2. **Restart Piper add-on** to load the new voice
+5. Click **Save**
 
-### C. Create Voice Assistant in HA
+### Step 3: Start the Add-on
 
-1. **Go to Voice Assistants:**
-   - **Settings** → **Voice assistants**
+1. Go to **Info** tab
+2. Toggle **Start on boot** (recommended)
+3. Click **Start**
+4. Go to **Log** tab - you should see:
 
-2. **Add Assistant:**
-   - Click **+ Add Assistant**
-
-3. **Configure:**
-   - **Name**: `Jarvis`
-   - **Language**: `English`
-   - **Conversation agent**: Select `conversation.jarvis_ai`
-   - **Speech-to-text**: Select `faster_whisper`
-   - **Text-to-speech**: Select `tts.piper` with `jarvis-high` voice
-   - Click **Create**
-
-4. **Test in HA:**
-   - Click the microphone icon in HA's UI
-   - Say: "What's the time?"
-   - Jarvis should respond!
+   ```
+   J.A.R.V.I.S. - Just A Rather Very Intelligent System
+   Starting Home Assistant Add-on...
+   Jarvis conversation brain initialized with Gemini 2.0 Flash
+   Jarvis conversation agent ready!
+   ```
 
 ---
 
-## Part 4: Set Up Wyoming Satellite (Pi 5)
+## Voice Pipeline Setup
 
-### A. Flash Wyoming Satellite to Pi 5
+To use voice control, you need Speech-to-Text and Text-to-Speech components.
 
-1. **Download Wyoming Satellite OS:**
-   - [Wyoming Satellite Releases](https://github.com/rhasspy/wyoming-satellite/releases)
-   - Download the image for Raspberry Pi (`.img.xz` file)
+### Step 1: Install Whisper (STT)
 
-2. **Flash to SD Card:**
-   - Use [Balena Etcher](https://www.balena.io/etcher/) or [Raspberry Pi Imager](https://www.raspberrypi.com/software/)
-   - Flash the image to a 16GB+ microSD card
+1. **Settings → Add-ons → Add-on Store**
+2. Search for "Whisper" or "Faster Whisper"
+3. Install and start
+4. Recommended settings:
 
-3. **Boot Pi 5:**
-   - Insert SD card
-   - Connect power, microphone, and speaker
-   - Wait for boot (LED will blink)
+   ```yaml
+   model: base
+   language: en
+   beam_size: 1
+   ```
 
-### B. Configure Wyoming Satellite
+### Step 2: Install Piper (TTS)
 
-1. **Connect to WiFi:**
-   - The Pi will create a WiFi hotspot named `wyoming-satellite-XXXX`
-   - Connect to it with your phone/laptop
-   - Open browser to `http://192.168.4.1`
-   - Configure your WiFi credentials
+1. **Settings → Add-ons → Add-on Store**
+2. Search for "Piper"
+3. Install and start
 
-2. **Configure Satellite:**
-   - After WiFi setup, find the Pi's IP on your network
-   - Browse to `http://PI_IP`
-   - Configure:
+### Step 2.5: Install Jarvis Voice Model (Recommended)
 
-     ```
-     Home Assistant URL: http://YOUR_HA_IP:8123
-     Access Token: (Generate a Long-Lived Access Token in HA)
-     Wake Word: Jarvis (or use Picovoice with "jarvis" model)
-     Voice Assistant: Jarvis (the one you created in Part 3)
-     ```
+For the authentic J.A.R.V.I.S. voice:
 
-3. **Test Wake Word:**
-   - Say "Jarvis"
-   - LED should light up
-   - Say "Turn on the office light"
-   - Jarvis should respond through the speaker!
+1. **Download the voice model** from [HuggingFace](https://huggingface.co/jgkawell/jarvis/tree/main/en/en_GB/jarvis):
+   - Download `jarvis-medium.onnx`
+   - Download `jarvis-medium.onnx.json`
+
+2. **Copy files to Home Assistant**:
+
+   ```bash
+   scp jarvis-medium.onnx root@YOUR_HA_IP:/share/piper/
+   scp jarvis-medium.onnx.json root@YOUR_HA_IP:/share/piper/
+   ```
+
+3. **Restart Piper add-on** to load the new voice
+
+> **Note**: If you skip this step, you can use any default Piper voice (e.g., `en_GB-alan-medium`), but it won't sound like J.A.R.V.I.S.
+
+### Step 3: Create Voice Assistant
+
+1. Go to **Settings → Voice assistants**
+2. Click **+ Add Assistant**
+3. Configure:
+   - **Name**: Jarvis
+   - **Language**: English
+   - **Conversation agent**: `Jarvis AI`
+   - **Speech-to-text**: Whisper (or Faster Whisper)
+   - **Text-to-speech**: Piper
+4. Click **Create**
+
+### Step 4: Test
+
+1. Click the microphone icon in the HA sidebar
+2. Say: "What time is it?"
+3. Jarvis should respond!
 
 ---
 
-## Part 5: Get API Keys (Optional Services)
+## Optional Integrations
 
-### Spotify API
+### Google Search (Web Knowledge)
 
-1. Go to [Spotify Developer Dashboard](https://developer.spotify.com/dashboard)
-2. Log in with your Spotify account
-3. Click **Create App**
-4. Fill in:
-   - **App Name**: Jarvis
-   - **App Description**: Home Assistant voice control
-   - **Redirect URI**: `http://localhost:8888/callback`
-5. Save
-6. Copy **Client ID** and **Client Secret**
-7. Add to Jarvis add-on configuration
+**What it enables**: Answer general knowledge questions
 
-### Radarr API
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Create or select a project
+3. Go to **APIs & Services → Library**
+4. Search for "Custom Search API" → Enable
+5. Go to **APIs & Services → Credentials**
+6. Click **+ Create Credentials → API Key**
+7. Copy the API key
 
-1. Open Radarr web UI
-2. **Settings** → **General**
-3. Copy **API Key**
-4. Add to Jarvis: `radarr_url: http://YOUR_RADARR_IP:7878` and `radarr_api_key: YOUR_KEY`
+8. Go to [Programmable Search Engine](https://programmablesearchengine.google.com/)
+9. Click **Add** to create a new engine
+10. For "Sites to search", select "Search the entire web"
+11. Create and copy the **Search Engine ID**
 
-### Sonarr API
+12. Add to Jarvis configuration:
 
-1. Open Sonarr web UI
-2. **Settings** → **General**
-3. Copy **API Key**
-4. Add to Jarvis: `sonarr_url: http://YOUR_SONARR_IP:8989` and `sonarr_api_key: YOUR_KEY`
+    ```yaml
+    google_search_api_key: "YOUR_API_KEY"
+    google_search_engine_id: "YOUR_ENGINE_ID"
+    ```
+
+---
+
+### Google Maps (Travel Time)
+
+**What it enables**: "How long to drive to work?"
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Enable **Distance Matrix API**
+3. Create an API key (or reuse existing)
+4. Add to configuration:
+
+   ```yaml
+   google_maps_api_key: "YOUR_API_KEY"
+   ```
+
+> **Tip**: Save your home/work addresses with Jarvis:
+> "Remember my home is 42 Oak Lane"
+> Then ask: "How long to get home?"
+
+---
+
+### Google Calendar
+
+**What it enables**: "Add meeting tomorrow at 2pm" / "What's on my calendar?"
+
+1. **Create Service Account**:
+   - Google Cloud Console → IAM & Admin → Service Accounts
+   - Create new service account
+   - Create JSON key → Download
+
+2. **Enable Calendar API**:
+   - APIs & Services → Library → Google Calendar API → Enable
+
+3. **Share Calendar**:
+   - Go to [Google Calendar](https://calendar.google.com/)
+   - Settings → Your calendar → Share with specific people
+   - Add your service account email (from the JSON file)
+   - Give "Make changes to events" permission
+
+4. **Get Calendar ID**:
+   - Settings → Your calendar → Integrate calendar
+   - Copy the Calendar ID (usually your email address)
+
+5. **Deploy credentials file**:
+   - Copy the JSON file to your HA:
+
+     ```bash
+     scp gcp-credentials.json root@YOUR_HA_IP:/addons/jarvis_ai/.cache/google_credentials.json
+     ```
+
+6. **Add to configuration**:
+
+   ```yaml
+   google_calendar_id: "your.email@gmail.com"
+   ```
+
+---
+
+### Spotify
+
+**What it enables**: "Play AC/DC" / "Play my Discover Weekly"
+
+1. **Create Spotify App**:
+   - Go to [Spotify Developer Dashboard](https://developer.spotify.com/dashboard)
+   - Create a new app
+   - Set Redirect URI: `http://localhost:8888/callback`
+   - Copy Client ID and Client Secret
+
+2. **Install Spotcast** (required):
+   - Install HACS if not already
+   - HACS → Integrations → Search "Spotcast" → Install
+   - Restart HA
+   - Configure Spotcast with your Spotify credentials
+
+3. **Add to configuration**:
+
+   ```yaml
+   spotify_client_id: "YOUR_CLIENT_ID"
+   spotify_client_secret: "YOUR_CLIENT_SECRET"
+   ```
+
+---
+
+### Radarr
+
+**What it enables**: "Add Dune to Radarr" / "What was the last movie downloaded?"
+
+1. Open your Radarr web UI
+2. Go to **Settings → General**
+3. Copy your **API Key**
+4. Add to configuration:
+
+   ```yaml
+   radarr_url: "http://192.168.1.100:7878"
+   radarr_api_key: "YOUR_API_KEY"
+   ```
+
+---
+
+### Sonarr
+
+**What it enables**: "Add The Mandalorian" / "What's missing in Sonarr?"
+
+1. Open your Sonarr web UI
+2. Go to **Settings → General**
+3. Copy your **API Key**
+4. Add to configuration:
+
+   ```yaml
+   sonarr_url: "http://192.168.1.100:8989"
+   sonarr_api_key: "YOUR_API_KEY"
+   ```
+
+---
+
+### Prowlarr
+
+**What it enables**: "How many indexers are working?"
+
+1. Open your Prowlarr web UI
+2. Go to Settings → General
+3. Copy your API Key
+4. Add to configuration:
+
+   ```yaml
+   prowlarr_url: "http://192.168.1.100:9696"
+   prowlarr_api_key: "YOUR_API_KEY"
+   ```
+
+---
+
+### qBittorrent
+
+**What it enables**: "What's downloading?" / "Is the VPN connected?"
+
+1. Enable qBittorrent Web UI:
+   - qBittorrent → Tools → Options → Web UI
+   - Enable Web UI
+   - Set username/password
+2. Add to configuration:
+
+   ```yaml
+   qbittorrent_url: "http://192.168.1.100:8080"
+   qbittorrent_username: "admin"
+   qbittorrent_password: "YOUR_PASSWORD"
+   ```
+
+---
+
+### UniFi Controller (Advanced)
+
+**What it enables**: DHCP queries, next available IP, bandwidth stats, firewall rules
+
+1. **Generate API Token** (Preferred):
+   - UniFi OS → Settings → Admins & Users
+   - Click your user → API Tokens
+   - Generate New Token → Copy
+
+2. Add to configuration:
+
+   ```yaml
+   unifi_controller_url: "https://192.168.1.1"
+   unifi_controller_api_token: "YOUR_TOKEN"
+   unifi_site_id: "default"
+   ```
+
+   **Or use username/password** (fallback):
+
+   ```yaml
+   unifi_controller_url: "https://192.168.1.1"
+   unifi_controller_username: "admin"
+   unifi_controller_password: "YOUR_PASSWORD"
+   unifi_site_id: "default"
+   ```
 
 ---
 
 ## Verification
 
-### Test Basic Functionality
+Test each integration after setup:
 
-1. **Home Assistant Control:**
+### Core
 
-   ```
-   Say: "Jarvis, turn on the office light"
-   Expected: Light turns on + "Office lighting, online sir"
-   ```
+```
+"What time is it?"
+"Hello Jarvis"
+```
 
-2. **Temperature Query:**
+### Home Assistant
 
-   ```
-   Say: "What's the temperature in the bedroom?"
-   Expected: "The bedroom temperature is 20 degrees" (or similar)
-   ```
+```
+"Turn on the living room light"
+"What's the temperature?"
+"Search for kitchen"
+```
 
-3. **Web Search:**
+### Google Search
 
-   ```
-   Say: "What's the capital of France?"
-   Expected: "Paris, sir" (or expanded answer)
-   ```
+```
+"What's the capital of France?"
+"Who won the 2024 World Cup?"
+```
 
-4. **Memory:**
+### Weather
 
-   ```
-   Say: "Remember my favorite color is blue"
-   Expected: "Noted, sir"
-   
-   Later: "What's my favorite color?"
-   Expected: "Your favorite color is blue, sir"
-   ```
+```
+"What's the weather in London?"
+"Do I need an umbrella?"
+```
 
-5. **Spotify (if configured):**
+### Spotify
 
-   ```
-   Say: "Play AC/DC"
-   Expected: Music starts playing
-   ```
+```
+"Play Queen"
+"Play my Daily Mix"
+```
+
+### Radarr/Sonarr
+
+```
+"What was the last movie downloaded?"
+"How many TV shows do I have?"
+```
+
+### UniFi
+
+```
+"What's my WAN IP?"
+"How many devices are connected?"
+```
+
+### Memory
+
+```
+"Remember my favorite food is pizza"
+"What's my favorite food?"
+```
 
 ---
 
-## Troubleshooting
+## Wyoming Satellite Setup (Optional)
 
-### Add-on won't start
+For wake word detection and dedicated microphone/speaker.
 
-- **Check logs**: Settings → Add-ons → Jarvis AI → Log tab
-- **Common issue**: Missing Gemini API key
-- **Fix**: Add API key in Configuration tab and restart
+### Hardware Requirements
 
-### "Connection refused" errors
+- Raspberry Pi 5 (or similar SBC)
+- USB microphone or HAT
+- Speaker (3.5mm or USB)
 
-- **Issue**: Wyoming server not accessible
-- **Check**: Port 10400 is exposed in config.yaml
-- **Verify**: Add-on is running (Info tab shows "Running")
+### Installation
 
-### Gemini function calling not working
+1. **Flash Wyoming Satellite OS**:
+   - Download from [Releases](https://github.com/rhasspy/wyoming-satellite/releases)
+   - Flash to SD card with Balena Etcher
 
-- **Check**: Internet connectivity from HA instance
-- **Verify**: Gemini API key is valid
-- **Test**: Try a simple question like "What's 2+2?"
+2. **Boot and Configure WiFi**:
+   - Connect to `wyoming-satellite-XXXX` hotspot
+   - Browse to `http://192.168.4.1`
+   - Enter your WiFi credentials
 
-### Spotify playback fails
+3. **Configure Satellite**:
 
-- **Check**: Spotify is installed and logged in
-- **Verify**: `media_player.spotify_luke` exists (or update entity_id in tools.py)
-- **Fix**: Open Spotify app on your device first
+   ```yaml
+   Home Assistant URL: http://YOUR_HA_IP:8123
+   Access Token: (Long-lived token from HA)
+   Wake Word: "jarvis"
+   Voice Assistant: Jarvis (created earlier)
+   ```
 
-### Memory not persisting
-
-- **Check**: `/data` directory exists and is writable
-- **Verify**: Logs show "Memory system initialized at /data/jarvis_memory.db"
-- **Fix**: Restart add-on if database got corrupted
+4. **Test**:
+   - Say "Jarvis"
+   - LED should light up
+   - Say "Turn on the lights"
+   - Response plays through speaker
 
 ---
 
@@ -368,18 +503,19 @@ Complete step-by-step instructions for installing and configuring Jarvis AI on y
 
 - **Customize**: Edit `tools.py` to add your own functions
 - **Tune Memory**: Adjust context retention in `memory.py`
-- **Add Wake Words**: Configure additional wake words in Wyoming Satellite
-- **Multi-room**: Set up more Wyoming Satellites for other rooms
+- **Multi-room**: Set up more Wyoming Satellites
+- **Custom Voice**: Train a custom Jarvis voice for Piper
 
 ---
 
 ## Need Help?
 
-1. Check the **Logs** tab in the add-on
-2. Review this installation guide
-3. Check [README.md](README.md) for command examples
-4. Open an issue on GitHub with logs attached
+1. Check **Logs**: Settings → Add-ons → Jarvis AI → Log
+2. Review [README.md](README.md) for feature details
+3. Check [Troubleshooting](README.md#troubleshooting) section
 
 ---
 
-**Congratulations! J.A.R.V.I.S. is now online. At your service, sir. Always.**
+**Congratulations! J.A.R.V.I.S. is now online.**
+
+*"At your service, sir. Always."*

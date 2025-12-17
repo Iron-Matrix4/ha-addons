@@ -40,6 +40,9 @@ class JarvisConversation:
         credentials_path = "/data/gcp-credentials.json"
         if os.path.exists(credentials_path):
             os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = credentials_path
+            logger.info(f"Using GCP credentials from {credentials_path}")
+        else:
+            logger.warning(f"GCP credentials not found at {credentials_path}, attempting default credentials")
         
         vertexai.init(
             project=config.GCP_PROJECT_ID,
@@ -76,6 +79,13 @@ PERSONA:
 - Keep responses concise and suitable for voice output
 - DO NOT use markdown formatting (asterisks, hash signs, etc.) - it will be read aloud
 
+USER PREFERENCES:
+- **CRITICAL**: Always check and respect user preferences listed below
+- If user has preference "skip_unit_suffix" or similar, DO NOT include units in your response
+  Example: If function returns "23 °C", say "23" or "23 degrees" based on preference
+- If user prefers Celsius/Fahrenheit, convert temperatures accordingly
+- User preferences override default formatting - follow them strictly
+
 HOME ASSISTANT CONTROL:
 - **IMPORTANT**: If you're not 100% certain of the exact entity_id, use search_ha_entities() FIRST
 - Example: For "office light", search first to see all office lights, then pick the right one
@@ -91,22 +101,52 @@ MULTI-COMMAND CONTEXT:
 - If a room is mentioned early in the request but not repeated, carry it forward
 - Only apply this inference when no explicit room is given for the later command
 
+LOCATIONS & TRAVEL:
+- Users can save locations with custom names: "Remember work is 123 Main St"
+- Save as "[name]_location" preference (e.g., "work_location", "gym_location", "mom_location")
+- When calculating travel time, these saved names can be used: "How long to work?" or "Time to gym from home?"
+- get_travel_time() will automatically resolve saved location names
+
 PROACTIVE KNOWLEDGE:
 - Use get_weather() for weather questions
-- Use google_search() for general knowledge you don't know
+- **IMPORTANT**: You have extensive built-in knowledge - use it for general questions!
+- **For Home Assistant queries**: Use search_ha_entities() when asked to find devices, entities, buttons, switches, sensors, etc.
+- ONLY use google_search() when:
+  * Asked explicitly to search the web ("search for...", "google...")
+  * Question requires current/real-time web information (news, events, stock prices)
+  * You genuinely don't know and it's not common knowledge
+- For general knowledge (health, science, history, etc.), answer directly without searching
 - Be helpful and find answers!
 
-Be conversational and stay in character!
+DEVICE CONTROL PATTERNS:
+- **"Restart X"** commands (e.g., "restart qbittorrent", "restart VPN"):
+  1. Use search_ha_entities() to find button entities containing "restart" + keyword
+  2. Press the most relevant button found using control_home_assistant()
+  3. Don't ask permission - just do it
+- "Turn on/off X" → Use control_home_assistant() to control entities/buttons
+- "Find X buttons" → Use search_ha_entities()
+- HASS Agent commands appear as button entities - search and press them automatically
+
+UNIFI NETWORK QUERIES:
+        **UniFi Network Queries:**
+        - Always use `query_unifi_controller()` for UniFi network information if configured (WAN IP, DHCP, clients, networks)
+        - You can use network NAMES instead of subnets: \"next IP in IoT\" or \"stats for Main-Network\"  
+        - Do NOT fall back to `query_unifi_network()` (which uses Home Assistant sensors) if the direct UniFi API is configured
+        
+        **General Knowledge vs Search:**
 """
         
         # Load user preferences from memory
         prefs = self.memory.get_all_preferences()
         
         if prefs:
-            pref_text = "\n\nUSER PREFERENCES (from memory}:\n"
+            logger.info(f"Loading {len(prefs)} preferences into system prompt: {list(prefs.keys())}")
+            pref_text = "\n\nUSER PREFERENCES (from memory):\n"
             for key, value in prefs.items():
                 pref_text += f"- {key}: {value}\n"
             base_prompt += pref_text
+        else:
+            logger.info("No preferences found in memory")
         
         # Load recent conversation context (exclude errors!)
         recent_context = self.memory.get_recent_context(limit=3, include_errors=False)
@@ -133,18 +173,42 @@ Be conversational and stay in character!
             # Manual memory command detection (temporary workaround)
             text_lower = text.lower()
             
-            # Handle "remember my home" / "set my home location"
-            if ("remember" in text_lower or "set" in text_lower) and "home" in text_lower and ("location" in text_lower or "is" in text_lower or "address" in text_lower):
-                # Extract location from text
-                # Common patterns: "remember my home is X", "set my home location to X", "my home is X"
+            # Handle "remember [location name] is [address]" / "save [location] as [address]"
+            if "remember" in text_lower or "save" in text_lower or "set" in text_lower:
+                # Try to extract location name and address
+                # Patterns: "remember work is 123 Main St", "save gym as Fitness Center", "set mom to 456 Oak Ave"
                 for pattern in [" is ", " as ", " to "]:
                     if pattern in text_lower:
-                        location = text.split(pattern, 1)[1].strip().rstrip('.')
-                        self.memory.save_preference("home_location", location)
-                        return f"Understood, Sir. I've logged your home location as {location}."
+                        parts = text.split(pattern, 1)
+                        prefix = parts[0].lower()
+                        address = parts[1].strip().rstrip('.')
+                        
+                        # Extract location name from prefix
+                        location_name = None
+                        if "remember" in prefix:
+                            location_name = prefix.replace("remember", "").replace("my", "").strip()
+                        elif "save" in prefix:
+                            location_name = prefix.replace("save", "").replace("my", "").strip()
+                        elif "set" in prefix:
+                            location_name = prefix.replace("set", "").replace("my", "").strip()
+                        
+                        if location_name:
+                            # Special handling for "home" vs other locations
+                            if "home" in location_name or "location" in location_name:
+                                pref_key = "home_location"
+                                display_name = "your home"
+                            else:
+                                # Remove words like "location", "address" from the name
+                                location_name = location_name.replace("location", "").replace("address", "").strip()
+                                pref_key = f"{location_name}_location"
+                                display_name = location_name
+                            
+                            self.memory.set_preference(pref_key, address)
+                            return f"Understood, Sir. I've logged {display_name} as {address}."
             
             # Handle "what's my home" / "where do I live"
-            if ("what" in text_lower or "where" in text_lower) and ("home" in text_lower or "live" in text_lower):
+            if (("what" in text_lower or "where" in text_lower) and 
+                ("home" in text_lower or "live" in text_lower)):
                 home = self.memory.get_preference("home_location")
                 if home:
                     return f"Your home is in {home}, Sir."
@@ -193,12 +257,18 @@ Be conversational and stay in character!
                     control_home_assistant,
                     get_ha_state,
                     search_ha_entities,
+                    get_person_location,
+                    get_appliance_status,
                     get_weather,
                     get_travel_time,
                     google_search,
+                    add_calendar_event,
+                    list_calendar_events,
+                    create_location_reminder,
                     play_music,
                     save_preference,
                     get_preference,
+                    delete_preference,
                     get_current_time,
                     query_radarr,
                     add_to_radarr,
@@ -208,6 +278,7 @@ Be conversational and stay in character!
                     query_prowlarr,
                     check_vpn_status,
                     query_unifi_network,
+                    query_unifi_controller,
                     analyze_camera,
                 )
                 
@@ -216,12 +287,18 @@ Be conversational and stay in character!
                     "control_home_assistant": control_home_assistant,
                     "get_ha_state": get_ha_state,
                     "search_ha_entities": search_ha_entities,
+                    "get_person_location": get_person_location,
+                    "get_appliance_status": get_appliance_status,
                     "get_weather": get_weather,
                     "get_travel_time": get_travel_time,
                     "google_search": google_search,
+                    "add_calendar_event": add_calendar_event,
+                    "list_calendar_events": list_calendar_events,
+                    "create_location_reminder": create_location_reminder,
                     "play_music": play_music,
                     "save_preference": save_preference,
                     "get_preference": get_preference,
+                    "delete_preference": delete_preference,
                     "get_current_time": get_current_time,
                     "query_radarr": query_radarr,
                     "add_to_radarr": add_to_radarr,
@@ -231,6 +308,7 @@ Be conversational and stay in character!
                     "query_prowlarr": query_prowlarr,
                     "check_vpn_status": check_vpn_status,
                     "query_unifi_network": query_unifi_network,
+                    "query_unifi_controller": query_unifi_controller,
                     "analyze_camera": analyze_camera,
                 }
                 
@@ -286,6 +364,14 @@ Be conversational and stay in character!
                             # Return a helpful response based on the function results
                             if "turn_on" in combined_results.lower() or "success" in combined_results.lower():
                                 return "Done, Sir. I've executed those commands for you."
+                            elif "not found" in combined_results.lower() or "error" in combined_results.lower():
+                                # Try to extract the actual error message
+                                if "Route not found" in combined_results:
+                                    return "I apologize, Sir, but I couldn't find a route for that location. Could you provide a more specific address or postcode?"
+                                elif "not configured" in combined_results.lower():
+                                    return "I apologize, Sir, but that feature isn't currently configured."
+                                else:
+                                    return f"I encountered an issue, Sir: {combined_results[:150]}"
                             else:
                                 return f"I executed the commands. Results: {combined_results[:200]}"
                     
@@ -316,6 +402,12 @@ Be conversational and stay in character!
             return response_text
         
         except Exception as e:
+            # Check if this is a safety block error
+            error_str = str(e)
+            if "Finish reason: 2" in error_str or "ResponseValidationError" in str(type(e)):
+                logger.error(f"Safety block detected: {e}")
+                return "I apologize, Sir, but that request triggered a safety filter. This sometimes happens with complex multi-step queries. Try breaking it into simpler parts - for example, ask for each destination separately."
+            
             logger.error(f"Vertex AI error: {e}", exc_info=True)
             return f"I encountered an error processing that, Sir. {str(e)}"
     

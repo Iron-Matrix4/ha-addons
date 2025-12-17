@@ -3,10 +3,15 @@ aiohttp>=3.8.0
 wyoming>=1.5.0
 
 # Google Vertex AI (replaces google-generativeai)
-google-cloud-aiplatform>=1.38.0
-
-# Music
-spotipy>=2.23.0
-
+google-cloud-aiplatform
+google-generativeai
+google-api-python-client
+dateparser
+requests
+pyyaml
+spotipy
+qbittorrent-api
+flask
+wyoming
 # Database
 requests>=2.31.0
