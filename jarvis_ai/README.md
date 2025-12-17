@@ -2,11 +2,11 @@
 
 <img src="icon.png" alt="Jarvis Logo" width="128">
 
-[![Add Repository to Home Assistant](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2FIron-Matrix4%2Fha-addons)
-
 **J.A.R.V.I.S.** - Just A Rather Very Intelligent System
 
 An intelligent voice-controlled conversation agent for Home Assistant, powered by Google Gemini. Jarvis provides natural language control of your smart home, media systems, and information queries with the personality of Tony Stark's legendary AI assistant.
+
+[![Add Repository to Home Assistant](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2FIron-Matrix4%2Fha-addons)
 
 ---
 
