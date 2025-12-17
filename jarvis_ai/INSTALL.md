@@ -92,30 +92,86 @@ If you want to install from local files (for development or modification):
 
 ## Core Configuration
 
-### Step 1: Get Gemini API Key
+### Step 1: Set Up AI Provider (Choose One)
+
+You need either a **Gemini API key** (free, simple) or **Vertex AI** (enterprise, more features).
+
+#### Option A: Google AI Studio (Recommended for Personal Use)
+
+This is the easiest setup - free tier available with generous limits.
 
 1. Go to [Google AI Studio](https://aistudio.google.com/apikey)
 2. Sign in with your Google account
-3. Click "Create API Key"
+3. Click **Create API Key**
 4. Copy the key
-
-### Step 2: Configure the Add-on
-
-1. Go to **Settings → Add-ons → Jarvis AI**
-2. Click **Configuration** tab
-3. Enter your Gemini API key:
+5. In Home Assistant, go to **Settings → Add-ons → Jarvis AI → Configuration**
+6. Enter:
 
    ```yaml
    gemini_api_key: "YOUR_API_KEY_HERE"
    ```
 
-4. Choose your model (optional):
+7. Click **Save**
 
-   ```yaml
-   gemini_model: "gemini-2.5-flash-lite"  # Fast and cheap
+#### Option B: Google Vertex AI (Enterprise/Advanced)
+
+Vertex AI offers higher rate limits, enterprise features, and access to the latest models. Requires a Google Cloud account with billing enabled.
+
+1. **Create a GCP Project**
+   - Go to [Google Cloud Console](https://console.cloud.google.com/)
+   - Create a new project or select existing
+   - Enable billing (required, but free tier available)
+
+2. **Enable Vertex AI API**
+   - Go to **APIs & Services → Library**
+   - Search for "Vertex AI API" → Enable
+
+3. **Create Service Account**
+   - Go to **IAM & Admin → Service Accounts**
+   - Click **Create Service Account**
+   - Name: `jarvis-ai`
+   - Grant role: **Vertex AI User**
+   - Click **Done**
+
+4. **Generate JSON Key**
+   - Click on your new service account
+   - Go to **Keys** tab → **Add Key → Create new key**
+   - Choose **JSON** → **Create**
+   - Save the downloaded file
+
+5. **Deploy Credentials to Home Assistant**
+
+   ```bash
+   scp your-credentials.json root@YOUR_HA_IP:/addon_configs/local_jarvis_ai/gcp-credentials.json
    ```
 
-5. Click **Save**
+   Or place the file at `/data/gcp-credentials.json` inside the add-on container.
+
+6. **Configure the Add-on**
+   - Go to **Settings → Add-ons → Jarvis AI → Configuration**
+   - Enter:
+
+   ```yaml
+   gcp_project_id: "your-project-id"
+   ```
+
+   > Leave `gemini_api_key` empty when using Vertex AI
+
+7. Click **Save**
+
+### Step 2: Choose Your Model (Optional)
+
+| Model | Speed | Intelligence | Cost | Best For |
+|-------|-------|--------------|------|----------|
+| `gemini-2.5-flash-lite` | ⚡⚡⚡ | ⭐⭐ | 💰 | Voice assistant (default) |
+| `gemini-2.5-flash` | ⚡⚡ | ⭐⭐⭐ | 💰💰 | Complex reasoning |
+| `gemini-2.0-flash-exp` | ⚡⚡ | ⭐⭐⭐ | 💰💰 | Latest experimental |
+
+To change the model:
+
+```yaml
+gemini_model: "gemini-2.5-flash"
+```
 
 ### Step 3: Start the Add-on
 
