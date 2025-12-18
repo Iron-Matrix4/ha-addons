@@ -2410,18 +2410,21 @@ def analyze_camera(camera_entity: str, question: str = "What do you see in this 
             if os.path.exists(credentials_path):
                 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = credentials_path
             
-            vertexai.init(project=config.GCP_PROJECT_ID, location="us-central1")
+            # Use configured location
+            vertexai.init(project=config.GCP_PROJECT_ID, location=config.GCP_LOCATION)
             
-            # Use Gemini 2.0 Flash for vision
-            model = GenerativeModel("gemini-2.0-flash-exp")
+            # Use stable flash model for vision to avoid -exp limits
+            model = GenerativeModel("gemini-1.5-flash")
             
             # Create image part
             image_part = Part.from_data(image_data, mime_type="image/jpeg")
             
-            logger.info(f"Sending image to Vertex AI Gemini Vision for analysis")
+            logger.info(f"Sending image to Vertex AI Vision ({config.GCP_LOCATION}) for analysis")
             response = model.generate_content([question, image_part])
             
-            return f"Camera analysis for {camera_entity}:\n{response.text}"
+            # Clean response text (remove bullet points etc if model ignores system prompt)
+            analysis = response.text.replace("*", "").replace("- ", "").strip()
+            return f"Camera analysis for {camera_entity}:\n{analysis}"
         
         else:
             # AI Studio mode (original implementation)
