@@ -15,7 +15,7 @@ This add-on runs **spotifyd** - a lightweight Spotify Connect client that:
 
 1. **Add this repository** to your Home Assistant:
    - Settings → Add-ons → Add-on Store → ⋮ → Repositories
-   - Add: `https://github.com/YOUR_USERNAME/ha-addons` (or local path)
+   - Add: `https://github.com/Iron-Matrix4/ha-addons` (or local path)
 
 2. **Install the add-on:**
    - Find "Spotify Player (spotifyd)" in the store
@@ -96,6 +96,6 @@ The add-on doesn't need to actually play audio - it just needs to exist as a Spo
 
 ## Support
 
-- Issues: [GitHub Issues](https://github.com/YOUR_USERNAME/ha-addons/issues)
+- Issues: [GitHub Issues](https://github.com/Iron-Matrix4/ha-addons/issues)
 - Jarvis Integration: See Jarvis add-on documentation
 - spotifyd: <https://github.com/Spotifyd/spotifyd>

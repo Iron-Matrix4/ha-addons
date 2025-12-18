@@ -2,6 +2,7 @@ name: "Spotify Player (spotifyd)"
 description: "Lightweight Spotify Connect player that runs on Home Assistant, keeping a Spotify session always active for voice control."
 version: "1.0.0"
 slug: "spotify_player"
+icon: icon.png
 init: false
 arch:
   - amd64
