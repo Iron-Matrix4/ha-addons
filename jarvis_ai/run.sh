@@ -1,5 +1,5 @@
 #!/usr/bin/with-contenv bashio
-VERSION="1.2.0"
+VERSION="1.2.1"
 
 bashio::log.info "Starting Jarvis AI Add-on v$VERSION..."
 

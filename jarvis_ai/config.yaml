@@ -1,6 +1,6 @@
 name: "Jarvis AI Conversation Agent"
 description: "J.A.R.V.I.S. - Just A Rather Very Intelligent System. AI conversation agent powered by Gemini for Home Assistant voice pipeline."
-version: "1.2.0"
+version: "1.2.1"
 slug: "jarvis_ai"
 
 icon: icon.png
