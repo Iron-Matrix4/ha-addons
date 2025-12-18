@@ -15,7 +15,7 @@ logger.info(f"GEMINI_API_KEY present: {bool(os.getenv('GEMINI_API_KEY'))}")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash-lite")
 GCP_PROJECT_ID = os.getenv("GCP_PROJECT_ID", "")
-GCP_LOCATION = os.getenv("GCP_LOCATION", "us-central1")  # Default Vertex AI location
+GCP_LOCATION = os.getenv("GCP_LOCATION", "europe-west1")  # Default Vertex AI location
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 
 # ===== HOME ASSISTANT =====
