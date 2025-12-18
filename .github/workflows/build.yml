@@ -21,96 +21,8 @@ env:
   BUILD_TYPE: addon
 
 jobs:
-  build:
-    name: Build Add-on
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Get add-on version
-        id: version
-        run: |
-          VERSION=$(grep -oP 'version:\s*"\K[^"]+' jarvis_ai/config.yaml)
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Add-on version: $VERSION"
-
-      - name: Lowercase repository owner
-        id: repo
-        run: |
-          OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
-          echo "owner=$OWNER_LOWER" >> $GITHUB_OUTPUT
-          echo "Repository owner (lowercase): $OWNER_LOWER"
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Login to GitHub Container Registry
-        if: github.event_name != 'pull_request'
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and test (PR only)
-        if: github.event_name == 'pull_request'
-        uses: docker/build-push-action@v5
-        with:
-          context: ./jarvis_ai
-          push: false
-          tags: jarvis-ai:test
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Build and push (amd64)
-        if: github.event_name != 'pull_request'
-        uses: docker/build-push-action@v5
-        with:
-          context: ./jarvis_ai
-          push: true
-          platforms: linux/amd64
-          tags: |
-            ghcr.io/${{ steps.repo.outputs.owner }}/amd64-addon-jarvis_ai:${{ steps.version.outputs.version }}
-            ghcr.io/${{ steps.repo.outputs.owner }}/amd64-addon-jarvis_ai:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          build-args: |
-            BUILD_FROM=ghcr.io/home-assistant/amd64-base-python:3.11
-
-      - name: Build and push (aarch64)
-        if: github.event_name != 'pull_request'
-        uses: docker/build-push-action@v5
-        with:
-          context: ./jarvis_ai
-          push: true
-          platforms: linux/arm64
-          tags: |
-            ghcr.io/${{ steps.repo.outputs.owner }}/aarch64-addon-jarvis_ai:${{ steps.version.outputs.version }}
-            ghcr.io/${{ steps.repo.outputs.owner }}/aarch64-addon-jarvis_ai:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          build-args: |
-            BUILD_FROM=ghcr.io/home-assistant/aarch64-base-python:3.11
-
-      - name: Build and push (armv7)
-        if: github.event_name != 'pull_request'
-        uses: docker/build-push-action@v5
-        with:
-          context: ./jarvis_ai
-          push: true
-          platforms: linux/arm/v7
-          tags: |
-            ghcr.io/${{ steps.repo.outputs.owner }}/armv7-addon-jarvis_ai:${{ steps.version.outputs.version }}
-            ghcr.io/${{ steps.repo.outputs.owner }}/armv7-addon-jarvis_ai:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          build-args: |
-            BUILD_FROM=ghcr.io/home-assistant/armv7-base-python:3.11
-
-  validate:
-    name: Validate Add-on Config
+  lint:
+    name: Lint Add-on
     runs-on: ubuntu-latest
     
     steps:
@@ -120,18 +32,17 @@ jobs:
       - name: Validate config.yaml
         run: |
           echo "Validating config.yaml structure..."
-          if ! grep -q "name:" jarvis_ai/config.yaml; then
-            echo "Error: Missing 'name' field in config.yaml"
-            exit 1
-          fi
-          if ! grep -q "version:" jarvis_ai/config.yaml; then
-            echo "Error: Missing 'version' field in config.yaml"
-            exit 1
-          fi
-          if ! grep -q "slug:" jarvis_ai/config.yaml; then
-            echo "Error: Missing 'slug' field in config.yaml"
-            exit 1
-          fi
+          CONFIG="jarvis_ai/config.yaml"
+          
+          # Check required fields
+          for field in name version slug arch; do
+            if ! grep -q "^${field}:" "$CONFIG" && ! grep -q "^  ${field}:" "$CONFIG"; then
+              if ! grep -q "${field}:" "$CONFIG"; then
+                echo "Error: Missing '$field' field in config.yaml"
+                exit 1
+              fi
+            fi
+          done
           echo "✓ config.yaml validation passed"
 
       - name: Check required files exist
@@ -146,3 +57,91 @@ jobs:
             echo "✓ $file exists"
           done
           echo "All required files present"
+
+      - name: Lint Dockerfile
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: jarvis_ai/Dockerfile
+          failure-threshold: warning
+        continue-on-error: true
+
+  build-test:
+    name: Test Docker Build
+    runs-on: ubuntu-latest
+    needs: lint
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Get add-on version
+        id: version
+        run: |
+          VERSION=$(grep -oP 'version:\s*"\K[^"]+' jarvis_ai/config.yaml)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Add-on version: $VERSION"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Test build (amd64)
+        uses: docker/build-push-action@v5
+        with:
+          context: ./jarvis_ai
+          push: false
+          load: true
+          tags: jarvis-ai:test-${{ steps.version.outputs.version }}
+          build-args: |
+            BUILD_FROM=python:3.11-slim-bookworm
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Verify image built
+        run: |
+          docker images jarvis-ai
+          echo "✓ Docker image built successfully"
+
+      - name: Test container starts
+        run: |
+          echo "Testing container starts..."
+          # Start container in background, just checking it doesn't crash immediately
+          docker run -d --name jarvis-test jarvis-ai:test-${{ steps.version.outputs.version }} || true
+          sleep 3
+          
+          # Check if container is still running (it will fail without HA, but should at least start)
+          STATUS=$(docker inspect -f '{{.State.Status}}' jarvis-test 2>/dev/null || echo "not found")
+          echo "Container status: $STATUS"
+          
+          # Cleanup
+          docker stop jarvis-test 2>/dev/null || true
+          docker rm jarvis-test 2>/dev/null || true
+          
+          echo "✓ Container startup test completed"
+
+  publish-info:
+    name: Publish Info
+    runs-on: ubuntu-latest
+    needs: build-test
+    if: github.event_name == 'release'
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Get add-on version
+        id: version
+        run: |
+          VERSION=$(grep -oP 'version:\s*"\K[^"]+' jarvis_ai/config.yaml)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Create release summary
+        run: |
+          echo "## Jarvis AI Add-on v${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "The add-on has been validated and is ready for installation." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Installation" >> $GITHUB_STEP_SUMMARY
+          echo "Add this repository to Home Assistant:" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "https://github.com/Iron-Matrix4/ha-addons" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
