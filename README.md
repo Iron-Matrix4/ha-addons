@@ -14,11 +14,11 @@ A collection of custom add-ons for Home Assistant.
 
 An intelligent voice-controlled conversation agent for Home Assistant, powered by Google Gemini. Features natural language control of your smart home, media systems, and information queries with the personality of Tony Stark's legendary AI assistant.
 
-## 🧩 Component Installation (Optional)
+## 🧩 Integration Installation (Optional)
 
-To enable the HTTP API integration (which allows Jarvis to work without Wyoming or for advanced features), you need to install the custom component included in this repository.
+To enable the HTTP API integration (which allows Jarvis to work without Wyoming or for advanced features), you need to install the custom integration included in this repository.
 
-1. **Copy the component**:
+1. **Copy the integration**:
     Copy the `custom_components/jarvis_conversation` folder from this repository to your Home Assistant's `/config/custom_components/` directory.
 
     *If you are using SSH:*
@@ -28,7 +28,7 @@ To enable the HTTP API integration (which allows Jarvis to work without Wyoming 
     ```
 
 2. **Restart Home Assistant**:
-    Restart Home Assistant to load the new component.
+    Restart Home Assistant to load the new integration.
 
 3. **Add Integration**:
     Go to **Settings > Devices & Services > Add Integration** and search for **"Jarvis AI Conversation Agent"**.
