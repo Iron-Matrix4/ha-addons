@@ -1,0 +1,13 @@
+{
+    "domain": "jarvis_conversation",
+    "name": "Jarvis AI Conversation Agent",
+    "version": "1.0.0",
+    "documentation": "https://github.com/user/jarvis-ai",
+    "dependencies": [],
+    "codeowners": [],
+    "requirements": [
+        "aiohttp"
+    ],
+    "config_flow": true,
+    "iot_class": "local_push"
+}
