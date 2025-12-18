@@ -1,6 +1,6 @@
 name: "Jarvis AI Conversation Agent"
 description: "J.A.R.V.I.S. - Just A Rather Very Intelligent System. AI conversation agent powered by Gemini for Home Assistant voice pipeline."
-version: "1.1.3"
+version: "1.1.5"
 slug: "jarvis_ai"
 icon: icon.png
 init: false
@@ -27,6 +27,7 @@ options:
   gemini_api_key: ""
   gemini_model: "gemini-2.5-flash-lite"
   gcp_project_id: ""
+  gcp_location: "us-central1"
   
   # === OPTIONAL INTEGRATIONS ===
   # Leave empty to disable each integration
@@ -60,9 +61,6 @@ options:
   unifi_controller_username: ""
   unifi_controller_password: ""
   unifi_site_id: "default"
-  
-  # Network Monitoring
-  unifi_wan_sensor: "sensor.unifi_gateway_wan_ip"
 
 # Configuration schema with validation
 schema:
@@ -70,6 +68,7 @@ schema:
   gemini_api_key: password?
   gemini_model: list(gemini-2.5-flash-lite|gemini-2.5-flash|gemini-2.5-flash-tts|gemma-3-12b|gemma-3-1b|gemma-3-27b|gemma-3-2b|gemma-3-4b)?
   gcp_project_id: str?
+  gcp_location: str?
   
   # === GOOGLE SERVICES ===
   google_search_api_key: password?
@@ -100,6 +99,3 @@ schema:
   unifi_controller_username: str?
   unifi_controller_password: password?
   unifi_site_id: str?
-  
-  # === NETWORK MONITORING ===
-  unifi_wan_sensor: str?

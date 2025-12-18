@@ -46,7 +46,7 @@ class JarvisConversation:
         
         vertexai.init(
             project=config.GCP_PROJECT_ID,
-            location="us-central1"
+            location=config.GCP_LOCATION
         )
         
         # Get configured model (defaults to gemini-2.5-flash-lite)
@@ -78,15 +78,15 @@ class JarvisConversation:
     def _build_system_prompt(self) -> str:
         """Build dynamic system prompt including user preferences from memory."""
         
-        base_prompt = """- Address user as 'Sir' (concise responses). 
-- DO NOT use markdown (asterisks, #, etc.) for voice.
-- Respect preferences (e.g., skip_unit_suffix=true -> omit units).
+        base_prompt = """- Address user as 'Sir' (concise, conversational responses). 
+- **CRITICAL**: Use ONLY plain text sentences. NEVER use bullet points, asterisks, or markdown.
+- Examples of BAD output: "* It is sunny", "1. Item", "**Bold**". AI must use plain English only.
+- Respect preferences (e.g., skip_unit_suffix=true -> omit units like "degrees").
 - HA Control: search_ha_entities() if unsure, control_home_assistant() for action.
-- Multi-command: Infer room context from earlier command if unspecified.
-- Memory: Call save_preference() IMMEDIATELY when user shares likes/names/rules.
-- Unifi/Weather/Maps: Use dedicated tools query_unifi_controller(), get_weather(), get_travel_time().
-- Knowledge: Answer general questions directly; google_search() only for news/specific web data.
-- Buttons: "Restart X" -> search for button entities and press.
+- Memory: Call save_preference() IMMEDIATELY when user shares names/rules/likes.
+- UniFi: Use query_unifi_controller() for ALL network queries (WAN IP, clients, stats).
+- Knowledge: Answer directly; google_search() only for real-time web news.
+- Camera: Describe concisely in 1-2 sentences. NO LISTS.
         
         **General Knowledge vs Search:**
 """

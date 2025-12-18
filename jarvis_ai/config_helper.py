@@ -15,6 +15,7 @@ logger.info(f"GEMINI_API_KEY present: {bool(os.getenv('GEMINI_API_KEY'))}")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash-lite")
 GCP_PROJECT_ID = os.getenv("GCP_PROJECT_ID", "")
+GCP_LOCATION = os.getenv("GCP_LOCATION", "us-central1")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 
 # ===== HOME ASSISTANT =====
@@ -59,9 +60,6 @@ UNIFI_CONTROLLER_API_TOKEN = os.getenv("UNIFI_CONTROLLER_API_TOKEN", "")
 UNIFI_CONTROLLER_USERNAME = os.getenv("UNIFI_CONTROLLER_USERNAME", "")
 UNIFI_CONTROLLER_PASSWORD = os.getenv("UNIFI_CONTROLLER_PASSWORD", "")
 UNIFI_SITE_ID = os.getenv("UNIFI_SITE_ID", "default")
-
-# ===== UNIFI (for VPN check) =====
-UNIFI_WAN_SENSOR = os.getenv("UNIFI_WAN_SENSOR", "sensor.unifi_gateway_wan_ip")
 
 # ===== LLM CONFIGURATION =====
 LLM_PROVIDER = "gemini"  # Always use Gemini for now

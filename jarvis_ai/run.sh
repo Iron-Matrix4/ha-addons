@@ -1,5 +1,5 @@
 #!/usr/bin/with-contenv bashio
-VERSION="1.1.3-optimized"
+VERSION="1.1.5-optimized"
 
 bashio::log.info "Starting Jarvis AI Add-on v$VERSION..."
 bashio::log.info "Optimization Mode: Vertex System Instructions Enabled"
@@ -8,6 +8,7 @@ bashio::log.info "Optimization Mode: Vertex System Instructions Enabled"
 export GEMINI_API_KEY=$(bashio::config 'gemini_api_key')
 export GEMINI_MODEL=$(bashio::config 'gemini_model')
 export GCP_PROJECT_ID=$(bashio::config 'gcp_project_id')
+export GCP_LOCATION=$(bashio::config 'gcp_location')
 export GOOGLE_SEARCH_API_KEY=$(bashio::config 'google_search_api_key')
 export GOOGLE_SEARCH_ENGINE_ID=$(bashio::config 'google_search_engine_id')
 export GOOGLE_MAPS_API_KEY=$(bashio::config 'google_maps_api_key')
