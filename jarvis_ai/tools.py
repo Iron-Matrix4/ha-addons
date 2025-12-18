@@ -322,7 +322,7 @@ def search_ha_entities(query: str):
             return f"No entities found matching '{query}'."
         
         output = ["Found entities:"]
-        for res in results[:10]:
+        for res in results[:20]:  # Increased from 10 to 20
             output.append(f"{res['entity_id']} ({res['friendly_name']})")
             
         return "\n".join(output)
