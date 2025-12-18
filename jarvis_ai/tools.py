@@ -235,6 +235,14 @@ def _search_ha_entities_raw(query: str):
                 })
         
         results.sort(key=lambda x: x['score'], reverse=True)
+        
+        # Debug: Log camera entities and their scores
+        camera_entities = [r for r in results if r['entity_id'].startswith('camera.')]
+        if 'camera' in query.lower():
+            logger.info(f"Search '{query}' found {len(camera_entities)} camera entities:")
+            for cam in camera_entities[:5]:
+                logger.info(f"  - {cam['entity_id']}: score={cam['score']}")
+        
         return results
     except Exception as e:
         logger.error(f"Error searching entities: {e}")
