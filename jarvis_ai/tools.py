@@ -194,6 +194,7 @@ def _search_ha_entities_raw(query: str):
         for entity in states:
             entity_id = entity['entity_id'].lower()
             friendly_name = entity['attributes'].get('friendly_name', '').lower()
+            domain = entity_id.split('.')[0]
             
             search_text = f"{entity_id} {friendly_name}"
             
@@ -212,6 +213,19 @@ def _search_ha_entities_raw(query: str):
                 score = 20
             elif all(token in search_text for token in query_tokens):
                 score = 10
+            
+            # Domain boost: if query contains a domain keyword, boost entities of that domain
+            domain_keywords = {
+                'camera': 'camera',
+                'light': 'light',
+                'switch': 'switch',
+                'sensor': 'sensor',
+                'climate': 'climate',
+            }
+            
+            for keyword, domain_name in domain_keywords.items():
+                if keyword in query_tokens and domain == domain_name:
+                    score += 50  # Significant boost for domain match
             
             if score > 0:
                 results.append({
