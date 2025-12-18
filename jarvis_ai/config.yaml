@@ -1,6 +1,6 @@
 name: "Jarvis AI Conversation Agent"
 description: "J.A.R.V.I.S. - Just A Rather Very Intelligent System. AI conversation agent powered by Gemini for Home Assistant voice pipeline."
-version: "1.0.8"
+version: "1.0.9"
 slug: "jarvis_ai"
 icon: icon.png
 init: false
@@ -17,6 +17,9 @@ ports_description:
 homeassistant_api: true
 hassio_api: true
 hassio_role: default
+map:
+  - config:rw
+  - share:rw
 
 # Default configuration values
 options:

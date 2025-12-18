@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.9] - 2025-12-18
+
+### Fixed
+
+- Added `map` configuration to `config.yaml` to explicitly mount `/config` and `/share` directories.
+
 ## [1.0.8] - 2025-12-18
 
 ### Changed
