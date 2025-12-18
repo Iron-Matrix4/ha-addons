@@ -1,0 +1,138 @@
+name: Build Jarvis AI Add-on
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'jarvis_ai/**'
+  pull_request:
+    branches:
+      - master
+    paths:
+      - 'jarvis_ai/**'
+  release:
+    types: [published]
+
+env:
+  BUILD_TYPE: addon
+
+jobs:
+  build:
+    name: Build Add-on
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Get add-on version
+        id: version
+        run: |
+          VERSION=$(grep -oP 'version:\s*"\K[^"]+' jarvis_ai/config.yaml)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Add-on version: $VERSION"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and test (PR only)
+        if: github.event_name == 'pull_request'
+        uses: docker/build-push-action@v5
+        with:
+          context: ./jarvis_ai
+          push: false
+          tags: jarvis-ai:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push (amd64)
+        if: github.event_name != 'pull_request'
+        uses: docker/build-push-action@v5
+        with:
+          context: ./jarvis_ai
+          push: true
+          platforms: linux/amd64
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/amd64-addon-jarvis_ai:${{ steps.version.outputs.version }}
+            ghcr.io/${{ github.repository_owner }}/amd64-addon-jarvis_ai:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            BUILD_FROM=ghcr.io/home-assistant/amd64-base-python:3.11
+
+      - name: Build and push (aarch64)
+        if: github.event_name != 'pull_request'
+        uses: docker/build-push-action@v5
+        with:
+          context: ./jarvis_ai
+          push: true
+          platforms: linux/arm64
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/aarch64-addon-jarvis_ai:${{ steps.version.outputs.version }}
+            ghcr.io/${{ github.repository_owner }}/aarch64-addon-jarvis_ai:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            BUILD_FROM=ghcr.io/home-assistant/aarch64-base-python:3.11
+
+      - name: Build and push (armv7)
+        if: github.event_name != 'pull_request'
+        uses: docker/build-push-action@v5
+        with:
+          context: ./jarvis_ai
+          push: true
+          platforms: linux/arm/v7
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/armv7-addon-jarvis_ai:${{ steps.version.outputs.version }}
+            ghcr.io/${{ github.repository_owner }}/armv7-addon-jarvis_ai:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            BUILD_FROM=ghcr.io/home-assistant/armv7-base-python:3.11
+
+  validate:
+    name: Validate Add-on Config
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate config.yaml
+        run: |
+          echo "Validating config.yaml structure..."
+          if ! grep -q "name:" jarvis_ai/config.yaml; then
+            echo "Error: Missing 'name' field in config.yaml"
+            exit 1
+          fi
+          if ! grep -q "version:" jarvis_ai/config.yaml; then
+            echo "Error: Missing 'version' field in config.yaml"
+            exit 1
+          fi
+          if ! grep -q "slug:" jarvis_ai/config.yaml; then
+            echo "Error: Missing 'slug' field in config.yaml"
+            exit 1
+          fi
+          echo "✓ config.yaml validation passed"
+
+      - name: Check required files exist
+        run: |
+          echo "Checking required files..."
+          files=("Dockerfile" "run.sh" "config.yaml" "README.md")
+          for file in "${files[@]}"; do
+            if [ ! -f "jarvis_ai/$file" ]; then
+              echo "Error: Missing required file: $file"
+              exit 1
+            fi
+            echo "✓ $file exists"
+          done
+          echo "All required files present"
