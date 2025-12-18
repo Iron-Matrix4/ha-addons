@@ -188,6 +188,11 @@ def _search_ha_entities_raw(query: str):
         response.raise_for_status()
         states = response.json()
         
+        # Debug: Log total entities and camera count
+        total_entities = len(states)
+        camera_count = len([e for e in states if e['entity_id'].startswith('camera.')])
+        logger.info(f"API returned {total_entities} total entities, {camera_count} are cameras")
+        
         results = []
         query_tokens = query.lower().split()
         
