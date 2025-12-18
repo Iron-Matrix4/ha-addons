@@ -1,17 +1,14 @@
 # Core dependencies
-aiohttp>=3.8.0
+aiohttp>=3.9.0
 wyoming>=1.5.0
 
-# Google Vertex AI (replaces google-generativeai)
-google-cloud-aiplatform
-google-generativeai
-google-api-python-client
+# Google Vertex AI (Optimized)
+google-cloud-aiplatform>=1.70.0
+google-generativeai>=0.8.0
+google-api-python-client>=2.100.0
 dateparser
-requests
+requests>=2.31.0
 pyyaml
 spotipy
 qbittorrent-api
 flask
-wyoming
-# Database
-requests>=2.31.0

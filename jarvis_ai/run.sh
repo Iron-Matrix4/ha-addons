@@ -1,5 +1,5 @@
 #!/usr/bin/with-contenv bashio
-VERSION="1.1.2-optimized"
+VERSION="1.1.3-optimized"
 
 bashio::log.info "Starting Jarvis AI Add-on v$VERSION..."
 bashio::log.info "Optimization Mode: Vertex System Instructions Enabled"

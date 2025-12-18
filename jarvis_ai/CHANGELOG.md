@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## 1.1.3 (2025-12-18)
+
+- **Latency Optimization (Phase 2)**: Condensed system prompt by 80% to reduce token overhead.
+- **Improved Performance**: Pinning modern Google Cloud SDK versions for better connection stability and speed.
+- **Context Window Tuning**: Reduced history window to 12 turns (6 exchanges) to maintain consistent response speeds over long sessions.
+
 ## 1.1.2 (2025-12-18)
 
 - **Fix**: Added missing `save_preference` and `get_preference` tools to the Vertex AI schema, resolving "undeclared function" errors and safety blocks.
