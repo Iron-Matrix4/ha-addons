@@ -521,8 +521,8 @@ jarvis_tool = Tool(
         list_calendar_events_func,
         create_location_reminder_func,
         play_music_func,
-        get_appliance_status_func,
-        query_qbittorrent_func,
+        save_preference_func,  # FIXED: Was missing
+        get_preference_func,   # FIXED: Was missing
         delete_preference_func,
         get_current_time_func,
         query_radarr_func,
