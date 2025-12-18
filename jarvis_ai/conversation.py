@@ -55,14 +55,20 @@ class JarvisConversation:
         # Import Vertex AI tools
         from vertex_tools import jarvis_tool
        
-        # Initialize with tools
+        # Initialize system instruction
+        system_instruction = self._build_system_prompt()
+        
+        # Initialize with tools and system instruction
         self.model = GenerativeModel(
             model_name,
-            tools=[jarvis_tool]
+            tools=[jarvis_tool],
+            system_instruction=system_instruction
         )
         
-        # Start chat
+        # Start chat with internal history management
         self.chat = self.model.start_chat()
+        self.history_limit = 10  # Keep last 10 exchanges for context
+
         
         logger.info(f"Jarvis conversation brain initialized with Vertex AI {model_name}")
         logger.info(f"GCP Project: {config.GCP_PROJECT_ID}")
@@ -139,25 +145,8 @@ UNIFI NETWORK QUERIES:
         # Load user preferences from memory
         prefs = self.memory.get_all_preferences()
         
-        if prefs:
-            logger.info(f"Loading {len(prefs)} preferences into system prompt: {list(prefs.keys())}")
-            pref_text = "\n\nUSER PREFERENCES (from memory):\n"
-            for key, value in prefs.items():
-                pref_text += f"- {key}: {value}\n"
-            base_prompt += pref_text
-        else:
-            logger.info("No preferences found in memory")
-        
-        # Load recent conversation context (exclude errors!)
-        recent_context = self.memory.get_recent_context(limit=3, include_errors=False)
-        if recent_context:
-            context_text = "\n\nRECENT CONTEXT:\n"
-            for ctx in recent_context:
-                context_text += f"User: {ctx['user']}\n"
-                context_text += f"You: {ctx['assistant']}\n"
-            base_prompt += context_text
-        
-        return base_prompt
+        return base_prompt.strip()
+
     
     def process(self, text: str) -> str:
         """
@@ -213,23 +202,27 @@ UNIFI NETWORK QUERIES:
                 if home:
                     return f"Your home is in {home}, Sir."
             
-            # Build system prompt with current memory/preferences
-            system_prompt = self._build_system_prompt()
-            
-            # Send message
-            if not self.chat.history:
-                # First message includes system prompt
-                full_message = f"{system_prompt}\n\nUser: {text}"
-                logger.info(f"First message with system prompt")
+            # Build dynamic system prompt (for preferences only - Vertex handles base prompt via instruction)
+            current_prefs = self.memory.get_all_preferences()
+            if current_prefs:
+                pref_msg = "Current preferences: " + str(current_prefs)
+                # We append preferences to the user message to keep them fresh without re-init
+                chat_message = f"{text}\n\n(Context: {pref_msg})"
             else:
-                # Subsequent messages don't need system prompt repeated
-                full_message = text
-                logger.info(f"User: {text}")
+                chat_message = text
+            
+            # Limit history if it gets too long
+            if len(self.chat.history) > self.history_limit * 2:
+                logger.info(f"Trimming chat history (current size: {len(self.chat.history)})")
+                self.chat.history = self.chat.history[-(self.history_limit * 2):]
+
+            logger.info(f"User: {text}")
             
             response = self.chat.send_message(
-                full_message,
+                chat_message,
                 generation_config={"temperature": 0.7, "max_output_tokens": 256}
             )
+
             
             # Loop through function calls until we get text
             max_function_calls = 5  # Prevent infinite loops

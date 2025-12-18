@@ -1,6 +1,8 @@
 #!/usr/bin/with-contenv bashio
+VERSION="1.1.0-optimized"
 
-echo "Starting Jarvis AI Add-on..."
+bashio::log.info "Starting Jarvis AI Add-on v$VERSION..."
+bashio::log.info "Optimization Mode: Vertex System Instructions Enabled"
 
 # Export configuration from HA add-on options
 export GEMINI_API_KEY=$(bashio::config 'gemini_api_key')
