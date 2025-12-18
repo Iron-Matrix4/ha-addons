@@ -348,6 +348,14 @@ def search_ha_entities(query: str):
         if not results:
             return f"No entities found matching '{query}'."
         
+        # WORKAROUND: If searching for "camera" specifically, ensure camera entities appear first
+        if 'camera' in query.lower():
+            camera_results = [r for r in results if r['entity_id'].startswith('camera.')]
+            other_results = [r for r in results if not r['entity_id'].startswith('camera.')]
+            # Put cameras first, then others
+            results = camera_results + other_results
+            logger.info(f"Camera search: {len(camera_results)} camera entities prioritized")
+        
         output = ["Found entities:"]
         for res in results[:20]:  # Increased from 10 to 20
             output.append(f"{res['entity_id']} ({res['friendly_name']})")
