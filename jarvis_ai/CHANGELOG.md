@@ -7,13 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [1.0.9] - 2025-12-18
+## 1.1.2 (2025-12-18)
 
-### Fixed
+- **Fix**: Added missing `save_preference` and `get_preference` tools to the Vertex AI schema, resolving "undeclared function" errors and safety blocks.
+- **Improved Reliability**: Properly linked memory tools to the AI brain.
 
-- Added `map` configuration to `config.yaml` to explicitly mount `/config` and `/share` directories.
-
-## [1.1.1] - 2025-12-18
+## 1.1.1 (2025-12-18)
 
 - **Bug Fix**: Fixed a crash in history management (`AttributeError: property 'history' of 'ChatSession' object has no setter`).
 - **Improved Tooling**: Enhanced system instructions to ensure user preferences are correctly saved via the `save_preference` tool.
