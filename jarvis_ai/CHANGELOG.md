@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.8] - 2025-12-18
+
+### Changed
+
+- Added debug logging for file existence in `/config` and `/share` to troubleshoot mounting issues.
+
 ## [1.0.7] - 2025-12-18
 
 ### Fixed

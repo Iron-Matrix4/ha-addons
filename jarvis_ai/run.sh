@@ -47,6 +47,14 @@ else
     bashio::log.info "Using Vertex AI mode"
     bashio::log.info "GCP Project ID: $GCP_PROJECT_ID"
     
+    # DEBUG: List directories to debug mapping
+    bashio::log.info "DEBUG: Listing /config:"
+    ls -la /config || bashio::log.info "/config not accessible"
+    bashio::log.info "DEBUG: Listing /share:"
+    ls -la /share || bashio::log.info "/share not accessible"
+    bashio::log.info "DEBUG: Listing /homeassistant:"
+    ls -la /homeassistant || bashio::log.info "/homeassistant not accessible"
+
     # helper function to copy credentials
     function copy_creds() {
         if [ -f "$1" ]; then
