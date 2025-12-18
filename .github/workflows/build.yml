@@ -60,7 +60,7 @@ jobs:
           done
 
       - name: Lint Dockerfile
-        uses: hadolint/hadolint-action@v3.1.0
+        uses: hadolint/hadolint-action@v3.3.0
         with:
           dockerfile: jarvis_ai/Dockerfile
           failure-threshold: warning
@@ -139,7 +139,7 @@ jobs:
           done
 
       - name: Lint Dockerfile
-        uses: hadolint/hadolint-action@v3.1.0
+        uses: hadolint/hadolint-action@v3.3.0
         with:
           dockerfile: spotify_player/Dockerfile
           failure-threshold: warning
