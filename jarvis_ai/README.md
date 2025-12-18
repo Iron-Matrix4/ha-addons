@@ -135,7 +135,14 @@ See [INSTALL.md](INSTALL.md) for detailed step-by-step instructions.
 |---------|-------------|
 | `gcp_project_id` | Your Google Cloud Project ID |
 
-> **Note**: Vertex AI requires a GCP service account credentials file. Place `gcp-credentials.json` in the add-on's data directory (`/data/gcp-credentials.json`).
+> **Note**: Vertex AI requires a GCP service account credentials file.
+>
+> **Instructions:**
+>
+> 1. Download your service account key as `gcp-credentials.json`.
+> 2. Upload it to your Home Assistant `/config` folder (accessible via File Editor or Samba).
+>    - Target path: `/config/gcp-credentials.json`
+>    - Alternative paths supported: `/share/gcp-credentials.json` or `/homeassistant/gcp-credentials.json`
 
 ### Model Selection
 
@@ -148,6 +155,12 @@ See [INSTALL.md](INSTALL.md) for detailed step-by-step instructions.
 ---
 
 ## Integrations
+
+### 🔌 HTTP API Integration (Required for non-Wyoming usage)
+
+To control Jarvis independently or via HTTP, install the custom integration.
+
+**[Installation Guide](https://github.com/Iron-Matrix4/ha-integrations)** (HACS Recommended)
 
 All integrations are **optional**. Leave settings empty to disable features you don't need.
 
