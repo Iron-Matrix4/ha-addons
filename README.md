@@ -16,23 +16,12 @@ An intelligent voice-controlled conversation agent for Home Assistant, powered b
 
 ## 🧩 Integration Installation (Optional)
 
-To enable the HTTP API integration (which allows Jarvis to work without Wyoming or for advanced features), you need to install the custom integration included in this repository.
+To enable the HTTP API integration (which allows Jarvis to work without Wyoming or for advanced features), you need to install the custom integration.
 
-1. **Copy the integration**:
-    Copy the `custom_components/jarvis_conversation` folder from this repository to your Home Assistant's `/config/custom_components/` directory.
+We have moved the integration to a dedicated repository for easier HACS installation:
+**[Iron-Matrix4/ha-integrations](https://github.com/Iron-Matrix4/ha-integrations)**
 
-    *If you are using SSH:*
-
-    ```bash
-    cp -r custom_components/jarvis_conversation /config/custom_components/
-    ```
-
-2. **Restart Home Assistant**:
-    Restart Home Assistant to load the new integration.
-
-3. **Add Integration**:
-    Go to **Settings > Devices & Services > Add Integration** and search for **"Jarvis AI Conversation Agent"**.
-    The URL should auto-fill to `http://1066d494-jarvis-ai:10401`.
+Please follow the installation instructions in that repository.
 
 ---
 
