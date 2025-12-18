@@ -6,13 +6,16 @@ on:
       - master
     paths:
       - 'jarvis_ai/**'
+      - '.github/workflows/**'
   pull_request:
     branches:
       - master
     paths:
       - 'jarvis_ai/**'
+      - '.github/workflows/**'
   release:
     types: [published]
+  workflow_dispatch:  # Allow manual triggers
 
 env:
   BUILD_TYPE: addon
