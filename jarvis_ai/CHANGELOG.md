@@ -13,17 +13,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Added `map` configuration to `config.yaml` to explicitly mount `/config` and `/share` directories.
 
+## [1.1.1] - 2025-12-18
+
+- **Bug Fix**: Fixed a crash in history management (`AttributeError: property 'history' of 'ChatSession' object has no setter`).
+- **Improved Tooling**: Enhanced system instructions to ensure user preferences are correctly saved via the `save_preference` tool.
+
+## [1.1.0] - 2025-12-18
+
+### Fixed
+
+- Fixed typo in `run.sh` causing `jq` errors for `unifi_controller_username`.
+
 ## [1.0.8] - 2025-12-18
 
 ### Changed
 
 - Added debug logging for file existence in `/config` and `/share` to troubleshoot mounting issues.
-
-## [1.0.7] - 2025-12-18
-
-### Fixed
-
-- Fixed typo in `run.sh` causing `jq` errors for `unifi_controller_username`.
 
 ## [1.0.6] - 2025-12-18
 

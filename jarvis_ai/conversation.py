@@ -134,10 +134,11 @@ DEVICE CONTROL PATTERNS:
 - HASS Agent commands appear as button entities - search and press them automatically
 
 UNIFI NETWORK QUERIES:
-        **UniFi Network Queries:**
-        - Always use `query_unifi_controller()` for UniFi network information if configured (WAN IP, DHCP, clients, networks)
-        - You can use network NAMES instead of subnets: \"next IP in IoT\" or \"stats for Main-Network\"  
-        - Do NOT fall back to `query_unifi_network()` (which uses Home Assistant sensors) if the direct UniFi API is configured
+        **Memory and Preferences:**
+        - **IMPORTANT**: When the user tells you a preference (name, likes, habits, name of family members, or formatting rules like "don't use units"), use `save_preference(name, value)` IMMEDIATELY.
+        - Example: "My wife is Emma" -> `save_preference("wife_name", "Emma")`
+        - Example: "Don't use units for temp" -> `save_preference("skip_unit_suffix", "true")`
+        - Do not just say "Understood", call the tool so I can remember it forever.
         
         **General Knowledge vs Search:**
 """
@@ -214,7 +215,13 @@ UNIFI NETWORK QUERIES:
             # Limit history if it gets too long
             if len(self.chat.history) > self.history_limit * 2:
                 logger.info(f"Trimming chat history (current size: {len(self.chat.history)})")
-                self.chat.history = self.chat.history[-(self.history_limit * 2):]
+                # Use internal _history as 'history' property is read-only
+                try:
+                    self.chat._history = self.chat.history[-(self.history_limit * 2):]
+                except Exception as history_err:
+                    logger.warning(f"Could not trim history via _history: {history_err}")
+                    # Fallback: start a new chat if trimming fails
+                    self.chat = self.model.start_chat(history=self.chat.history[-(self.history_limit * 2):])
 
             logger.info(f"User: {text}")
             
