@@ -1,4 +1,4 @@
-name: Build Jarvis AI Add-on
+name: Build Home Assistant Add-ons
 
 on:
   push:
@@ -6,12 +6,14 @@ on:
       - master
     paths:
       - 'jarvis_ai/**'
+      - 'spotify_player/**'
       - '.github/workflows/**'
   pull_request:
     branches:
       - master
     paths:
       - 'jarvis_ai/**'
+      - 'spotify_player/**'
       - '.github/workflows/**'
   release:
     types: [published]
@@ -21,8 +23,11 @@ env:
   BUILD_TYPE: addon
 
 jobs:
-  lint:
-    name: Lint Add-on
+  # ============================================
+  # JARVIS AI ADD-ON
+  # ============================================
+  lint-jarvis:
+    name: Lint Jarvis AI
     runs-on: ubuntu-latest
     
     steps:
@@ -31,23 +36,20 @@ jobs:
 
       - name: Validate config.yaml
         run: |
-          echo "Validating config.yaml structure..."
+          echo "Validating Jarvis AI config.yaml..."
           CONFIG="jarvis_ai/config.yaml"
           
-          # Check required fields
           for field in name version slug arch; do
-            if ! grep -q "^${field}:" "$CONFIG" && ! grep -q "^  ${field}:" "$CONFIG"; then
-              if ! grep -q "${field}:" "$CONFIG"; then
-                echo "Error: Missing '$field' field in config.yaml"
-                exit 1
-              fi
+            if ! grep -q "${field}:" "$CONFIG"; then
+              echo "Error: Missing '$field' field in config.yaml"
+              exit 1
             fi
           done
           echo "✓ config.yaml validation passed"
 
-      - name: Check required files exist
+      - name: Check required files
         run: |
-          echo "Checking required files..."
+          echo "Checking Jarvis AI required files..."
           files=("Dockerfile" "run.sh" "config.yaml" "README.md")
           for file in "${files[@]}"; do
             if [ ! -f "jarvis_ai/$file" ]; then
@@ -56,7 +58,6 @@ jobs:
             fi
             echo "✓ $file exists"
           done
-          echo "All required files present"
 
       - name: Lint Dockerfile
         uses: hadolint/hadolint-action@v3.1.0
@@ -65,10 +66,10 @@ jobs:
           failure-threshold: warning
         continue-on-error: true
 
-  build-test:
-    name: Test Docker Build
+  build-jarvis:
+    name: Build Jarvis AI
     runs-on: ubuntu-latest
-    needs: lint
+    needs: lint-jarvis
     
     steps:
       - name: Checkout repository
@@ -79,12 +80,12 @@ jobs:
         run: |
           VERSION=$(grep -oP 'version:\s*"\K[^"]+' jarvis_ai/config.yaml)
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Add-on version: $VERSION"
+          echo "Jarvis AI version: $VERSION"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Test build (amd64)
+      - name: Build Docker image
         uses: docker/build-push-action@v5
         with:
           context: ./jarvis_ai
@@ -96,33 +97,58 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Verify image built
+      - name: Verify image
         run: |
           docker images jarvis-ai
-          echo "✓ Docker image built successfully"
+          echo "✓ Jarvis AI Docker image built successfully"
 
-      - name: Test container starts
-        run: |
-          echo "Testing container starts..."
-          # Start container in background, just checking it doesn't crash immediately
-          docker run -d --name jarvis-test jarvis-ai:test-${{ steps.version.outputs.version }} || true
-          sleep 3
-          
-          # Check if container is still running (it will fail without HA, but should at least start)
-          STATUS=$(docker inspect -f '{{.State.Status}}' jarvis-test 2>/dev/null || echo "not found")
-          echo "Container status: $STATUS"
-          
-          # Cleanup
-          docker stop jarvis-test 2>/dev/null || true
-          docker rm jarvis-test 2>/dev/null || true
-          
-          echo "✓ Container startup test completed"
-
-  publish-info:
-    name: Publish Info
+  # ============================================
+  # SPOTIFY PLAYER ADD-ON
+  # ============================================
+  lint-spotify:
+    name: Lint Spotify Player
     runs-on: ubuntu-latest
-    needs: build-test
-    if: github.event_name == 'release'
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate config.yaml
+        run: |
+          echo "Validating Spotify Player config.yaml..."
+          CONFIG="spotify_player/config.yaml"
+          
+          for field in name version slug arch; do
+            if ! grep -q "${field}:" "$CONFIG"; then
+              echo "Error: Missing '$field' field in config.yaml"
+              exit 1
+            fi
+          done
+          echo "✓ config.yaml validation passed"
+
+      - name: Check required files
+        run: |
+          echo "Checking Spotify Player required files..."
+          files=("Dockerfile" "run.sh" "config.yaml" "README.md")
+          for file in "${files[@]}"; do
+            if [ ! -f "spotify_player/$file" ]; then
+              echo "Error: Missing required file: $file"
+              exit 1
+            fi
+            echo "✓ $file exists"
+          done
+
+      - name: Lint Dockerfile
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: spotify_player/Dockerfile
+          failure-threshold: warning
+        continue-on-error: true
+
+  build-spotify:
+    name: Build Spotify Player
+    runs-on: ubuntu-latest
+    needs: lint-spotify
     
     steps:
       - name: Checkout repository
@@ -131,14 +157,56 @@ jobs:
       - name: Get add-on version
         id: version
         run: |
-          VERSION=$(grep -oP 'version:\s*"\K[^"]+' jarvis_ai/config.yaml)
+          VERSION=$(grep -oP 'version:\s*"\K[^"]+' spotify_player/config.yaml)
           echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Spotify Player version: $VERSION"
 
-      - name: Create release summary
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./spotify_player
+          push: false
+          load: true
+          tags: spotify-player:test-${{ steps.version.outputs.version }}
+          build-args: |
+            BUILD_FROM=alpine:3.19
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Verify image
         run: |
-          echo "## Jarvis AI Add-on v${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          docker images spotify-player
+          echo "✓ Spotify Player Docker image built successfully"
+
+  # ============================================
+  # SUMMARY
+  # ============================================
+  summary:
+    name: Build Summary
+    runs-on: ubuntu-latest
+    needs: [build-jarvis, build-spotify]
+    if: always()
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Create summary
+        run: |
+          echo "## 🏠 Home Assistant Add-ons Build Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "The add-on has been validated and is ready for installation." >> $GITHUB_STEP_SUMMARY
+          
+          # Get versions
+          JARVIS_VERSION=$(grep -oP 'version:\s*"\K[^"]+' jarvis_ai/config.yaml)
+          SPOTIFY_VERSION=$(grep -oP 'version:\s*"\K[^"]+' spotify_player/config.yaml)
+          
+          echo "| Add-on | Version | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|---------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| 🤖 Jarvis AI | v$JARVIS_VERSION | ${{ needs.build-jarvis.result == 'success' && '✅ Pass' || '❌ Fail' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🎵 Spotify Player | v$SPOTIFY_VERSION | ${{ needs.build-spotify.result == 'success' && '✅ Pass' || '❌ Fail' }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Installation" >> $GITHUB_STEP_SUMMARY
           echo "Add this repository to Home Assistant:" >> $GITHUB_STEP_SUMMARY
