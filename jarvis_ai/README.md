@@ -534,6 +534,7 @@ For the authentic J.A.R.V.I.S. voice, install the custom Piper voice model:
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 1.0.5 | 2025-12-18 | Codebase cleanup: removed legacy files, streamlined to 17 essential files |
 | 1.0.4 | 2025-12-17 | GitHub repository hosting, one-click install button, Vertex AI setup guide |
 | 1.0.3 | 2025-12-17 | Added custom icon, documentation overhaul |
 | 1.0.2 | 2025-12-16 | UniFi Controller integration, camera analysis |

@@ -1,0 +1,86 @@
+# Changelog
+
+All notable changes to the Jarvis AI Home Assistant Add-on will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+---
+
+## [1.0.5] - 2025-12-18
+
+### Removed
+
+- Removed 27 unused files from codebase cleanup (~135MB saved)
+- Removed legacy STT/TTS modules (`stt.py`, `stt_picovoice.py`, `tts_*.py`, `wake_word.py`)
+- Removed old boot script (`Boot_Jarvis.py`) and legacy server code
+- Removed embedded Piper voice models (114MB) - use external Piper addon instead
+- Removed test scripts and temporary files
+
+### Changed
+
+- Streamlined codebase to 17 essential files
+- TTS/STT now fully delegated to Home Assistant voice pipeline
+
+---
+
+## [1.0.4] - 2025-12-17
+
+### Added
+
+- GitHub repository hosting at `https://github.com/Iron-Matrix4/ha-addons`
+- One-click "Add to Home Assistant" installation button
+- Vertex AI setup documentation
+
+### Changed
+
+- Removed personal data from examples (generic names/addresses)
+- Updated README.md with comprehensive documentation
+
+---
+
+## [1.0.3] - 2025-12-17
+
+### Added
+
+- Custom Jarvis AI icon
+- Documentation overhaul with feature tables and architecture diagram
+
+---
+
+## [1.0.2] - 2025-12-16
+
+### Added
+
+- UniFi Controller integration (DHCP leases, port forwards, firewall rules)
+- Camera snapshot analysis using Gemini Vision
+- Advanced network queries (bandwidth, device status)
+
+---
+
+## [1.0.1] - 2025-12-15
+
+### Added
+
+- Google Calendar integration (add events, list schedule)
+- Location-based reminders ("Remind me when I get home")
+- Timer functionality
+
+---
+
+## [1.0.0] - 2025-12-14
+
+### Added
+
+- Initial release of Jarvis AI Conversation Agent
+- Wyoming protocol integration for Home Assistant voice pipeline
+- Gemini AI-powered natural language understanding
+- Smart home control (lights, switches, climate, covers, locks)
+- Spotify integration via Spotcast
+- Media management (Radarr, Sonarr, Prowlarr)
+- qBittorrent download monitoring
+- Google Custom Search for web queries
+- Google Maps travel time calculations
+- Weather queries via OpenMeteo
+- Persistent memory system for user preferences
+- J.A.R.V.I.S. personality and conversation style
