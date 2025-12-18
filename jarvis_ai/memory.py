@@ -23,7 +23,7 @@ class Memory:
         self.conn = sqlite3.connect(db_path, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
         self._init_db()
-        logger.debug(f"Memory system initialized at {db_path}")
+        logger.info(f"Memory system initialized at {db_path}")
     
     def _init_db(self):
         """Create database schema if not exists."""
@@ -79,7 +79,7 @@ class Memory:
         """)
         
         self.conn.commit()
-        logger.debug("Memory database schema initialized")
+        logger.info("Memory database schema initialized")
     
     # ===== PREFERENCES =====
     
@@ -94,7 +94,7 @@ class Memory:
             VALUES (?, ?, CURRENT_TIMESTAMP)
         """, (key, json.dumps(value)))
         self.conn.commit()
-        logger.debug(f"Preference set: {key} = {value}")
+        logger.info(f"Preference set: {key} = {value}")
     
     def get_preference(self, key: str, default: Any = None) -> Any:
         """Retrieve a user preference."""
@@ -119,7 +119,7 @@ class Memory:
         cursor = self.conn.cursor()
         cursor.execute("DELETE FROM preferences WHERE key = ?", (key,))
         self.conn.commit()
-        logger.debug(f"Preference deleted: {key}")
+        logger.info(f"Preference deleted: {key}")
     
     # ===== FACTS =====
     
@@ -136,7 +136,7 @@ class Memory:
             VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
         """, (entity_id, fact_key, fact_value, source))
         self.conn.commit()
-        logger.debug(f"Fact remembered: {entity_id}.{fact_key} = {fact_value} (source: {source})")
+        logger.info(f"Fact remembered: {entity_id}.{fact_key} = {fact_value} (source: {source})")
     
     def recall_fact(self, entity_id: str, fact_key: str) -> Optional[str]:
         """Retrieve a learned fact about an entity."""
@@ -166,7 +166,7 @@ class Memory:
             DELETE FROM facts WHERE entity_id = ? AND fact_key = ?
         """, (entity_id, fact_key))
         self.conn.commit()
-        logger.debug(f"Fact deleted: {entity_id}.{fact_key}")
+        logger.info(f"Fact deleted: {entity_id}.{fact_key}")
     
     # ===== CONVERSATION CONTEXT =====
     
@@ -302,4 +302,4 @@ class Memory:
     def close(self):
         """Close database connection."""
         self.conn.close()
-        logger.debug("Memory database closed")
+        logger.info("Memory database closed")

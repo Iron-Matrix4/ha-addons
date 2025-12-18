@@ -290,7 +290,17 @@ def get_ha_state(entity_id: str):
         
         state_val = state_data['state']
         unit = state_data['attributes'].get('unit_of_measurement', '')
-        if unit:
+        
+        # Respect skip_unit_suffix preference
+        skip_unit = False
+        try:
+            from memory import Memory
+            mem = Memory()
+            skip_unit = mem.get_preference("skip_unit_suffix", False)
+        except:
+            pass
+            
+        if unit and not skip_unit:
             state_val = f"{state_val} {unit}"
             
         msg = f"The state of {resolved_id} is {state_val}."

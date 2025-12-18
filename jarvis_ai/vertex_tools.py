@@ -521,14 +521,15 @@ jarvis_tool = Tool(
         list_calendar_events_func,
         create_location_reminder_func,
         play_music_func,
-        save_preference_func,
-        get_preference_func,
+        get_appliance_status_func,
+        query_qbittorrent_func,
         delete_preference_func,
         get_current_time_func,
         query_radarr_func,
         add_to_radarr_func,
         query_sonarr_func,
         add_to_sonarr_func,
+        query_qbittorrent_func,
         query_prowlarr_func,
         check_vpn_status_func,
         query_unifi_network_func,
@@ -536,4 +537,3 @@ jarvis_tool = Tool(
         analyze_camera_func,
     ]
 )
-
