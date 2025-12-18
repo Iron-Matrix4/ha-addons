@@ -29,18 +29,18 @@ class JarvisConversation:
         # Check mode: Vertex AI or AI Studio
         if config.GCP_PROJECT_ID:
             # Vertex AI mode - no API key needed
-            logger.info("Initializing in Vertex AI mode")
+            logger.debug("Initializing in Vertex AI mode")
         else:
             # AI Studio mode - require API key
             if not config.GEMINI_API_KEY:
                 raise ValueError("GEMINI_API_KEY not configured!")
-            logger.info("Initializing in AI Studio mode")
+            logger.debug("Initializing in AI Studio mode")
         
         # Initialize Vertex AI
         credentials_path = "/data/gcp-credentials.json"
         if os.path.exists(credentials_path):
             os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = credentials_path
-            logger.info(f"Using GCP credentials from {credentials_path}")
+            logger.debug(f"Using GCP credentials from {credentials_path}")
         else:
             logger.warning(f"GCP credentials not found at {credentials_path}, attempting default credentials")
         
@@ -71,9 +71,9 @@ class JarvisConversation:
 
 
         
-        logger.info(f"Jarvis conversation brain initialized with Vertex AI {model_name}")
-        logger.info(f"GCP Project: {config.GCP_PROJECT_ID}")
-        logger.info("Function calling tools enabled: HA control, weather, search")
+        logger.debug(f"Jarvis conversation brain initialized with Vertex AI {model_name}")
+        logger.debug(f"GCP Project: {config.GCP_PROJECT_ID}")
+        logger.debug("Function calling tools enabled: HA control, weather, search")
     
     def _build_system_prompt(self) -> str:
         """Build dynamic system prompt including user preferences from memory."""
@@ -178,7 +178,7 @@ Proactive Intelligence:
             
             # Limit history if it gets too long
             if len(self.chat.history) > self.history_limit * 2:
-                logger.info(f"Trimming chat history (current size: {len(self.chat.history)})")
+                logger.debug(f"Trimming chat history (current size: {len(self.chat.history)})")
                 # Use internal _history as 'history' property is read-only
                 try:
                     self.chat._history = self.chat.history[-(self.history_limit * 2):]
@@ -201,16 +201,16 @@ Proactive Intelligence:
             
             while function_call_count < max_function_calls:
                 # Debug: Log response structure
-                logger.info(f"Response candidates: {len(response.candidates)}")
+                logger.debug(f"Response candidates: {len(response.candidates)}")
                 if not response.candidates:
                     break
                 
                 candidate = response.candidates[0]
-                logger.info(f"Finish reason: {candidate.finish_reason}")
-                logger.info(f"Safety ratings: {candidate.safety_ratings}")
+                logger.debug(f"Finish reason: {candidate.finish_reason}")
+                logger.debug(f"Safety ratings: {candidate.safety_ratings}")
                     
                 parts = candidate.content.parts
-                logger.info(f"Response parts: {len(parts)}")
+                logger.debug(f"Response parts: {len(parts)}")
                 
                 # Check if any part is a function call - collect ALL function calls first
                 has_function_call = False
@@ -277,11 +277,11 @@ Proactive Intelligence:
                 }
                 
                 for i, part in enumerate(parts):
-                    logger.info(f"Part {i}: has function_call = {hasattr(part, 'function_call')}")
+                    logger.debug(f"Part {i}: has function_call = {hasattr(part, 'function_call')}")
                     
                     if hasattr(part, 'function_call'):
-                        logger.info(f"Part {i} function_call object: {part.function_call}")
-                        logger.info(f"Part {i} function_call bool: {bool(part.function_call)}")
+                        logger.debug(f"Part {i} function_call object: {part.function_call}")
+                        logger.debug(f"Part {i} function_call bool: {bool(part.function_call)}")
                     
                     if hasattr(part, 'function_call') and part.function_call:
                         has_function_call = True
@@ -291,13 +291,13 @@ Proactive Intelligence:
                         function_name = part.function_call.name
                         function_args = dict(part.function_call.args)
                         
-                        logger.info(f"Function call {function_call_count}: {function_name}({function_args})")
+                        logger.debug(f"Function call {function_call_count}: {function_name}({function_args})")
                         
                         if function_name in function_map:
                             try:
                                 # Call the function
                                 result = function_map[function_name](**function_args)
-                                logger.info(f"Function result: {result}")
+                                logger.debug(f"Function result: {result}")
                                 function_results.append(f"{function_name}: {result}")
                                 
                             except Exception as e:
@@ -307,7 +307,7 @@ Proactive Intelligence:
                 # If we had function calls, send ALL results back together
                 if has_function_call and function_results:
                     combined_results = "\n".join(function_results)
-                    logger.info(f"Sending {len(function_results)} function results back to model")
+                    logger.debug(f"Sending {len(function_results)} function results back to model")
                     
                     try:
                         response = self.chat.send_message(

@@ -13,6 +13,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Improved Performance**: Pinning modern Google Cloud SDK versions for better connection stability and speed.
 - **Context Window Tuning**: Reduced history window to 12 turns (6 exchanges) to maintain consistent response speeds over long sessions.
 
+## 1.1.9 (2025-12-18)
+
+- **Truly Data-Driven**: Removed all hardcoded model versions. Vision analysis now uses your configured `gemini_model`.
+- **Cleaner Logs**: (Carried forward from 1.1.8) Downgraded noisy AI internal reasoning to `DEBUG` for a professional experience.
+
+## 1.1.8 (2025-12-18)
+
+- **Cleaner Logs**: Downgraded verbose AI reasoning, safety ratings, and tool search messages to `DEBUG` level.
+- **Improved Focus**: Production logs now focus solely on User inputs and Jarvis's final responses for a cleaner experience.
+
 ## 1.1.7 (2025-12-18)
 
 - **Stability First**: Reverted all experimental system prompt and configuration changes to restore Jarvis's original intelligence and persona.

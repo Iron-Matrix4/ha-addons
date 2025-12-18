@@ -358,7 +358,7 @@ def get_appliance_status(appliance_name: str):
         entity_ids = [r['entity_id'] for r in results]
         appliance_entities = [e for e in all_entities if e['entity_id'] in entity_ids]
         
-        logger.info(f"Found {len(appliance_entities)} entities for '{appliance_name}'")
+        logger.debug(f"Found {len(appliance_entities)} entities for '{appliance_name}'")
         
         # Find time-related sensors
         time_info = []
@@ -387,13 +387,13 @@ def get_appliance_status(appliance_name: str):
             for keyword in best_keywords:
                 if keyword in entity_lower:
                     matched_keyword = keyword
-                    logger.info(f"Matched BEST keyword '{keyword}' in {entity_id}")
+                    logger.debug(f"Matched BEST keyword '{keyword}' in {entity_id}")
                     break
             if not matched_keyword:
                 for keyword in ok_keywords:
                     if keyword in entity_lower:
                         matched_keyword = keyword
-                        logger.info(f"Matched OK keyword '{keyword}' in {entity_id}")
+                        logger.debug(f"Matched OK keyword '{keyword}' in {entity_id}")
                         break
             
             if matched_keyword:
@@ -678,7 +678,7 @@ def play_music(query: str, device: str = None, entity_id: str = None):
                 return f"Could not find device matching '{device}'"
         
         # Use Spotcast to play
-        logger.info(f"Playing {uri} on {target_entity} via Spotcast")
+        logger.debug(f"Playing {uri} on {target_entity} via Spotcast")
         
         headers = {
             "Authorization": f"Bearer {config.HA_TOKEN}",
@@ -2413,13 +2413,13 @@ def analyze_camera(camera_entity: str, question: str = "What do you see in this 
             # Use configured location
             vertexai.init(project=config.GCP_PROJECT_ID, location=config.GCP_LOCATION)
             
-            # Use stable flash model for vision to avoid -exp limits
-            model = GenerativeModel("gemini-1.5-flash")
+            # Use user-configured model
+            model = GenerativeModel(config.GEMINI_MODEL)
             
             # Create image part
             image_part = Part.from_data(image_data, mime_type="image/jpeg")
             
-            logger.info(f"Sending image to Vertex AI Vision ({config.GCP_LOCATION}) for analysis")
+            logger.debug(f"Sending image to Vertex AI Vision ({config.GCP_LOCATION}) for analysis")
             response = model.generate_content([question, image_part])
             
             # Clean response text (remove bullet points etc if model ignores system prompt)
@@ -2431,7 +2431,7 @@ def analyze_camera(camera_entity: str, question: str = "What do you see in this 
             image_base64 = base64.b64encode(image_data).decode('utf-8')
             content_type = snapshot_response.headers.get('Content-Type', 'image/jpeg')
             
-            gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={config.GEMINI_API_KEY}"
+            gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/{config.GEMINI_MODEL}:generateContent?key={config.GEMINI_API_KEY}"
             
             vision_payload = {
                 "contents": [{
