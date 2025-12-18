@@ -58,9 +58,7 @@ options:
   unifi_controller_username: ""
   unifi_controller_password: ""
   unifi_site_id: "default"
-  
-  # Network Monitoring
-  unifi_wan_sensor: "sensor.unifi_gateway_wan_ip"
+
 
 # Configuration schema with validation
 schema:
@@ -98,6 +96,4 @@ schema:
   unifi_controller_username: str?
   unifi_controller_password: password?
   unifi_site_id: str?
-  
-  # === NETWORK MONITORING ===
-  unifi_wan_sensor: str?
+
