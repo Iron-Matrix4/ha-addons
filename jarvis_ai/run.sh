@@ -47,12 +47,27 @@ else
     bashio::log.info "Using Vertex AI mode"
     bashio::log.info "GCP Project ID: $GCP_PROJECT_ID"
     
-    # Copy credentials to data directory if it exists
-    if [ -f "/app/gcp-credentials.json" ]; then
-        cp /app/gcp-credentials.json /data/gcp-credentials.json
-        bashio::log.info "GCP credentials file found and copied"
+    # helper function to copy credentials
+    function copy_creds() {
+        if [ -f "$1" ]; then
+            cp "$1" /data/gcp-credentials.json
+            bashio::log.info "GCP credentials found at $1 and copied"
+            return 0
+        fi
+        return 1
+    }
+
+    # Search for credentials in likely locations
+    if copy_creds "/config/gcp-credentials.json"; then
+        :
+    elif copy_creds "/share/gcp-credentials.json"; then
+        :
+    elif copy_creds "/homeassistant/gcp-credentials.json"; then
+        :
+    elif copy_creds "/app/gcp-credentials.json"; then
+        :
     else
-        bashio::log.warning "GCP credentials file not found at /app/gcp-credentials.json"
+        bashio::log.warning "GCP credentials file not found! Please upload gcp-credentials.json to /config, /share, or /homeassistant"
     fi
 fi
 

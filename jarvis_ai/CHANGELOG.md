@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.6] - 2025-12-18
+
+### Changed
+
+- Expanded search locations for `gcp-credentials.json` to include `/config`, `/share`, and `/homeassistant`.
+
 ## [1.0.5] - 2025-12-18
 
 ### Removed
