@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.7] - 2025-12-18
+
+### Fixed
+
+- Fixed typo in `run.sh` causing `jq` errors for `unifi_controller_username`.
+
 ## [1.0.6] - 2025-12-18
 
 ### Changed
