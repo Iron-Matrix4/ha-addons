@@ -1,8 +1,7 @@
 #!/usr/bin/with-contenv bashio
-VERSION="1.1.9-optimized"
+VERSION="1.2.0"
 
 bashio::log.info "Starting Jarvis AI Add-on v$VERSION..."
-bashio::log.info "Optimization Mode: Vertex System Instructions Enabled"
 
 # Export configuration from HA add-on options
 export GEMINI_API_KEY=$(bashio::config 'gemini_api_key')
@@ -29,7 +28,7 @@ export UNIFI_CONTROLLER_API_TOKEN=$(bashio::config 'unifi_controller_api_token')
 export UNIFI_CONTROLLER_USERNAME=$(bashio::config 'unifi_controller_username')
 export UNIFI_CONTROLLER_PASSWORD=$(bashio::config 'unifi_controller_password')
 export UNIFI_SITE_ID=$(bashio::config 'unifi_site_id')
-export UNIFI_WAN_SENSOR=$(bashio::config 'unifi_wan_sensor')
+
 
 # Home Assistant connection (auto-provided by add-on framework)
 export HA_URL="http://supervisor/core"
