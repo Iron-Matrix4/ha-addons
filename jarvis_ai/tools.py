@@ -2456,8 +2456,8 @@ def analyze_camera(camera_entity: str, question: str = "What do you see in this 
                 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = credentials_path
             
             # Initialize Vertex AI for vision analysis
-            # Fallback to us-central1 if GCP_LOCATION not in config (HA caching issue)
-            gcp_location = getattr(config, 'GCP_LOCATION', 'us-central1')
+            # Fallback to europe-west1 if GCP_LOCATION not in config (HA caching issue)
+            gcp_location = getattr(config, 'GCP_LOCATION', 'europe-west1')
             vertexai.init(project=config.GCP_PROJECT_ID, location=gcp_location)
             
             # Use user-configured model
