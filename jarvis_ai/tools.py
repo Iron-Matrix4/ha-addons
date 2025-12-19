@@ -2403,7 +2403,7 @@ def query_unifi_controller(query_type: str, subnet: str = "", client_id: str = "
 
 # ===== CAMERA ANALYSIS (GEMINI VISION) =====
 
-def analyze_camera(camera_entity: str, question: str = "What do you see in this image?"):
+def analyze_camera(camera_entity: str, question: str = "Describe this scene in a natural, conversational way."):
     """
     Analyze a camera snapshot using Gemini Vision.
     Grabs a snapshot from a Home Assistant camera entity and sends it to Gemini for analysis.
