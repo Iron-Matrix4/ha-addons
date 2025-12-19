@@ -2479,23 +2479,8 @@ def analyze_camera(camera_entity: str, question: str = "Describe this scene in a
             logger.info(f"Sending image to Vertex AI Gemini Vision for analysis")
             response = model.generate_content([question, image_part])
             
-            # Clean up response to make it more conversational
-            text = response.text
-            
-            # Remove common prefixes
-            text = text.replace("Here's what I see in the image:", "")
-            text = text.replace("Here's what I can see in the image:", "")
-            text = text.replace("Here's a breakdown of what I see in the image:", "")
-            
-            # Remove bullet point markers
-            text = text.replace("*   ", "").replace("* ", "")
-            text = text.replace("-   ", "").replace("- ", "")
-            
-            # Clean up extra whitespace and newlines
-            text = " ".join(text.split())
-            
             # Return just the vision analysis without mentioning camera entity
-            return text.strip()
+            return response.text
         
         else:
             # AI Studio mode (original implementation)
