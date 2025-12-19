@@ -3030,10 +3030,11 @@ def list_calendar_events(days_ahead: int = 7):
         return "\n".join(output)
         
     except Exception as e:
-        logger.error(f"Calendar list error: {e}", exc_info=True)
-        return f"Failed to list events: {e}"
+        logger.error(f"Past calendar search error: {e}", exc_info=True)
+        return f"Failed to search past events: {e}"
 
 
+# ===== LOCATION REMINDERS =====
 def create_location_reminder(message: str, location: str = "home", person_entity: str = "person.user"):
     """
     Create a location-based reminder using Home Assistant automation.
