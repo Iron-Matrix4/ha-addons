@@ -2479,7 +2479,8 @@ def analyze_camera(camera_entity: str, question: str = "What do you see in this 
             logger.info(f"Sending image to Vertex AI Gemini Vision for analysis")
             response = model.generate_content([question, image_part])
             
-            return f"Camera analysis for {camera_entity}:\n{response.text}"
+            # Return just the vision analysis without mentioning camera entity
+            return response.text
         
         else:
             # AI Studio mode (original implementation)
