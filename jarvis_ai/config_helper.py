@@ -15,7 +15,11 @@ logger.info(f"GEMINI_API_KEY present: {bool(os.getenv('GEMINI_API_KEY'))}")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash-lite")
 GCP_PROJECT_ID = os.getenv("GCP_PROJECT_ID", "")
-GCP_LOCATION = os.getenv("GCP_LOCATION", "europe-west1")  # Default Vertex AI location
+# Fix: HA passes "null" as a string when not set, need to treat it as empty
+_gcp_location = os.getenv("GCP_LOCATION", "europe-west1")
+if not _gcp_location or _gcp_location.lower() in ['null', 'none', '']:
+    _gcp_location = "europe-west1"  # Default Vertex AI location (EU region)
+GCP_LOCATION = _gcp_location
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 
 # ===== HOME ASSISTANT =====

@@ -2459,6 +2459,10 @@ def analyze_camera(camera_entity: str, question: str = "What do you see in this 
             # Fallback to europe-west1 (confirmed supported region, closer to UK)
             gcp_location = getattr(config, 'GCP_LOCATION', 'europe-west1')
             
+            # Handle invalid values (HA sometimes passes "null" as a string)
+            if not gcp_location or str(gcp_location).lower() in ['null', 'none', '']:
+                gcp_location = 'europe-west1'
+            
             # DEBUG: Log what value is actually being passed
             logger.error(f"DEBUG: GCP_LOCATION value = '{gcp_location}' (type: {type(gcp_location)})")
             logger.error(f"DEBUG: config module = {config}")
@@ -3140,6 +3144,33 @@ def get_preference(name: str):
     except Exception as e:
         logger.error(f"Error getting preference: {e}", exc_info=True)
         return f"Failed to get preference: {e}"
+
+def clear_context_history():
+    """
+    Clear old conversation context entries from memory.
+    This only clears the conversation history, NOT user preferences or facts.
+    Use this to free up memory or start fresh conversations.
+    
+    Returns:
+        Confirmation message with count of cleared entries
+    """
+    try:
+        memory = _get_memory()
+        # Get count before clearing
+        stats = memory.get_stats()
+        count = stats.get('context_entries', 0)
+        
+        # Clear only context, not preferences or facts
+        cursor = memory.conn.cursor()
+        cursor.execute("DELETE FROM context")
+        memory.conn.commit()
+        
+        logger.info(f"Cleared {count} context entries")
+        return f"Cleared {count} conversation context entries. User preferences and facts remain intact."
+    except Exception as e:
+        logger.error(f"Error clearing context: {e}", exc_info=True)
+        return f"Failed to clear context: {e}"
+
 
 def list_all_preferences():
     """
