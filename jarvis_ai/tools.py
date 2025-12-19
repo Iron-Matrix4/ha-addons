@@ -2762,29 +2762,46 @@ def get_travel_time(origin: str, destination: str, mode: str = "driving"):
         return f"Failed to get travel time: {e}"
 
 
+
+
+# ===== GOOGLE CALENDAR =====
+
+
 def _get_calendar_service():
-    """Helper to get authenticated Google Calendar service."""
+    """
+    Get authenticated Google Calendar service using GCP service account.
+    
+    Returns:
+        Tuple of (service, error_message)
+        - service: Authenticated Google Calendar API service object (or None if error)
+        - error_message: Error description (or None if successful)
+    """
     try:
-        from googleapiclient.discovery import build
         from google.oauth2 import service_account
+        from googleapiclient.discovery import build
+        import os
         
-        # Use same service account as Vertex AI
-        credentials_path = os.path.join(os.path.dirname(__file__), ".cache", "google_credentials.json")
-        
+        # Check for credentials file
+        credentials_path = "/data/gcp-credentials.json"
         if not os.path.exists(credentials_path):
-            return None,  "Google service account credentials not found. Check GCP configuration."
+            return None, "Google Cloud credentials not found at /data/gcp-credentials.json"
         
+        # Load service account credentials
         SCOPES = ['https://www.googleapis.com/auth/calendar']
         credentials = service_account.Credentials.from_service_account_file(
-            credentials_path, scopes=SCOPES)
+            credentials_path,
+            scopes=SCOPES
+        )
         
+        # Build Calendar API service
         service = build('calendar', 'v3', credentials=credentials)
+        logger.info("Google Calendar service authenticated successfully")
         return service, None
         
     except Exception as e:
-        logger.error(f"Calendar service error: {e}", exc_info=True)
-        return None, f"Failed to authenticate with Google Calendar: {e}"
-
+        error_msg = f"Failed to authenticate Google Calendar: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        return None, error_msg
 
 def add_calendar_event(title: str, date_time: str, duration_minutes: int = 60, description: str = ""):
     """
