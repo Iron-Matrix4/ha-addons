@@ -185,10 +185,23 @@ UNIFI NETWORK QUERIES:
                 # Try to extract location name and address
                 # Patterns: "remember work is 123 Main St", "save gym as Fitness Center", "set mom to 456 Oak Ave"
                 for pattern in [" is ", " as ", " to "]:
-                    if pattern in text_lower:
+                    if pattern in text:
                         parts = text.split(pattern, 1)
                         prefix = parts[0].lower()
                         address = parts[1].strip().rstrip('.')
+                        
+                        # Only process if it looks like a location command
+                        # Check for location keywords or address-like content
+                        is_location_command = (
+                            "location" in prefix or 
+                            "address" in prefix or 
+                            "home" in prefix or
+                            any(keyword in address.lower() for keyword in ["street", "road", "avenue", "drive", "lane", "way", " st ", " rd ", " ave "]) or
+                            (len(address) > 15 and any(char.isdigit() for char in address))  # Address-like: long and has numbers
+                        )
+                        
+                        if not is_location_command:
+                            continue  # Skip - not a location command
                         
                         # Extract location name from prefix
                         location_name = None

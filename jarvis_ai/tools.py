@@ -2803,7 +2803,63 @@ def _get_calendar_service():
         logger.error(error_msg, exc_info=True)
         return None, error_msg
 
-def add_calendar_event(title: str, date_time: str, duration_minutes: int = 60, description: str = ""):
+def _get_calendar_color_id(color_name: str) -> str:
+    """
+    Get Google Calendar color ID from color name.
+    Supports standard colors and custom names stored in preferences.
+    
+    Args:
+        color_name: Color name (e.g., 'red', 'Luke's colour')
+    
+    Returns:
+        Google Calendar colorId (1-11) or empty string if not found
+    """
+    # Standard Google Calendar colors (IDs 1-11)
+    standard_colors = {
+        'lavender': '1',
+        'sage': '2',
+        'grape': '3',
+        'flamingo': '4',
+        'banana': '5',
+        'tangerine': '6',
+        'peacock': '7',
+        'graphite': '8',
+        'blueberry': '9',
+        'basil': '10',
+        'tomato': '11',
+        # Common aliases
+        'purple': '3',
+        'pink': '4',
+        'yellow': '5',
+        'orange': '6',
+        'blue': '7',
+        'gray': '8',
+        'grey': '8',
+        'dark blue': '9',
+        'green': '10',
+        'red': '11'
+    }
+    
+    color_lower = color_name.lower().strip()
+    
+    # Check standard colors first
+    if color_lower in standard_colors:
+        return standard_colors[color_lower]
+    
+    # Check if it's a custom color name saved in preferences
+    memory = _get_memory()
+    pref_key = f"calendar_color_{color_lower.replace(' ', '_').replace(\"'\", '')}"
+    saved_color_id = memory.get_preference(pref_key)
+    
+    if saved_color_id:
+        logger.info(f"Using saved color mapping: '{color_name}' -> {saved_color_id}")
+        return saved_color_id
+    
+    # Not found
+    logger.warning(f"Color '{color_name}' not recognized. Use standard colors or save custom colors first.")
+    return ""
+
+def add_calendar_event(title: str, date_time: str, duration_minutes: int = 60, description: str = "", color: str = ""):
     """
     Add an event to Google Calendar.
     
@@ -2827,8 +2883,23 @@ def add_calendar_event(title: str, date_time: str, duration_minutes: int = 60, d
         from datetime import datetime, timedelta
         import dateparser
         
+        # Pre-process common time aliases
+        time_aliases = {
+            'lunch': '12:00 PM',
+            'midday': '12:00 PM',
+            'noon': '12:00 PM',
+            'dinner': '6:00 PM',
+            'breakfast': '8:00 AM'
+        }
+        
+        # Replace time aliases
+        date_time_normalized = date_time.lower()
+        for alias, time in time_aliases.items():
+            if alias in date_time_normalized:
+                date_time_normalized = date_time_normalized.replace(alias, time)
+        
         # Parse date/time
-        parsed_dt = dateparser.parse(date_time, settings={'PREFER_DATES_FROM': 'future'})
+        parsed_dt = dateparser.parse(date_time_normalized, settings={'PREFER_DATES_FROM': 'future'})
         if not parsed_dt:
             return f"Could not parse date/time: '{date_time}'. Try formats like 'tomorrow at 2pm' or '2024-12-25 14:00'"
         
@@ -2849,6 +2920,13 @@ def add_calendar_event(title: str, date_time: str, duration_minutes: int = 60, d
             },
         }
         
+        # Add color if specified
+        if color:
+            color_id = _get_calendar_color_id(color)
+            if color_id:
+                event['colorId'] = color_id
+                logger.info(f"Setting calendar event color to: {color} (ID: {color_id})")
+        
         created_event = service.events().insert(calendarId=config.GOOGLE_CALENDAR_ID, body=event).execute()
         
         logger.info(f"Created calendar event: {title} at {parsed_dt}")
@@ -2857,6 +2935,40 @@ def add_calendar_event(title: str, date_time: str, duration_minutes: int = 60, d
     except Exception as e:
         logger.error(f"Calendar event creation error: {e}", exc_info=True)
         return f"Failed to create event: {e}"
+
+
+def save_calendar_color(color_name: str, color_id_or_standard: str):
+    """
+    Save a custom calendar color name mapping.
+    
+    Args:
+        color_name: Custom name for the color (e.g., "Luke's colour", "work color")
+        color_id_or_standard: Either a Google Calendar color ID (1-11) or a standard color name
+    
+    Returns:
+        Confirmation message
+    """
+    try:
+        # If they gave a standard color name, convert to ID
+        color_id = _get_calendar_color_id(color_id_or_standard)
+        if not color_id:
+            # They gave a direct ID, validate it
+            if color_id_or_standard in [str(i) for i in range(1, 12)]:
+                color_id = color_id_or_standard
+            else:
+                return f"Invalid color '{color_id_or_standard}'. Use a standard color name (red, blue, green) or ID (1-11)"
+        
+        # Save to preferences
+        memory = _get_memory()
+        pref_key = f"calendar_color_{color_name.lower().replace(' ', '_').replace(\"'\", '')}"
+        memory.set_preference(pref_key, color_id)
+        
+        logger.info(f"Saved custom calendar color: '{color_name}' -> {color_id}")
+        return f"Saved '{color_name}' as your custom calendar color"
+        
+    except Exception as e:
+        logger.error(f"Error saving calendar color: {e}", exc_info=True)
+        return f"Failed to save color: {e}"
 
 
 def list_calendar_events(days_ahead: int = 7):
