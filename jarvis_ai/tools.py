@@ -2470,13 +2470,13 @@ def analyze_camera(camera_entity: str, question: str = "What do you see in this 
             
             vertexai.init(project=config.GCP_PROJECT_ID, location=gcp_location)
             
-            # Use Gemini 2.0 Flash for vision (best for image analysis)
-            model = GenerativeModel("gemini-2.0-flash-exp")
+            # Use user-configured model
+            model = GenerativeModel(config.GEMINI_MODEL)
             
             # Create image part
             image_part = Part.from_data(image_data, mime_type="image/jpeg")
             
-            logger.info(f"Sending image to Vertex AI Gemini Vision for analysis")
+            logger.info(f"Sending image to Vertex AI Gemini Vision ({config.GEMINI_MODEL}) for analysis")
             response = model.generate_content([question, image_part])
             
             return f"Camera analysis for {camera_entity}:\n{response.text}"
