@@ -3030,6 +3030,78 @@ def list_calendar_events(days_ahead: int = 7):
         return "\n".join(output)
         
     except Exception as e:
+        logger.error(f"Calendar list error: {e}", exc_info=True)
+        return f"Failed to list events: {e}"
+
+
+def search_past_calendar_events(search_term: str = "", days_back: int = 30):
+    """
+    Search past calendar events by title/keyword.
+    
+    Args:
+        search_term: Search keyword (e.g., "lunch", "meeting"). Leave empty to get all past events.
+        days_back: Number of days to search back (default: 30)
+    
+    Returns:
+        Formatted list of matching past events
+    """
+    if not config.GOOGLE_CALENDAR_ID:
+        return "Error: Google Calendar ID not configured."
+    
+    service, error = _get_calendar_service()
+    if error:
+        return f"Error: {error}"
+    
+    try:
+        from datetime import datetime, timedelta
+        
+        # Search from days_back ago until now
+        start_date = (datetime.utcnow() - timedelta(days=days_back)).isoformat() + 'Z'
+        now = datetime.utcnow().isoformat() + 'Z'
+        
+        events_result = service.events().list(
+            calendarId=config.GOOGLE_CALENDAR_ID,
+            timeMin=start_date,
+            timeMax=now,
+            maxResults=50,
+            singleEvents=True,
+            orderBy='startTime'
+        ).execute()
+        
+        events = events_result.get('items', [])
+        
+        # Filter by search term if provided
+        if search_term:
+            search_lower = search_term.lower()
+            events = [e for e in events if search_lower in e.get('summary', '').lower()]
+        
+        if not events:
+            if search_term:
+                return f"No past events found matching '{search_term}' in the last {days_back} days"
+            else:
+                return f"No past events in the last {days_back} days"
+        
+        # Format results
+        output = [f"Found {len(events)} past event(s):"]
+        for event in reversed(events):  # Most recent first
+            start = event['start'].get('dateTime', event['start'].get('date'))
+            summary = event.get('summary', 'No title')
+            
+            # Parse and format time
+            try:
+                if 'T' in start:  # DateTime
+                    dt = datetime.fromisoformat(start.replace('Z', '+00:00'))
+                    time_str = dt.strftime('%a, %b %d at %I:%M %p')
+                else:  # All-day
+                    dt = datetime.fromisoformat(start)
+                    time_str = dt.strftime('%a, %b %d (all day)')
+                output.append(f"- {summary}: {time_str}")
+            except:
+                output.append(f"- {summary}: {start}")
+        
+        return "\n".join(output)
+        
+    except Exception as e:
         logger.error(f"Past calendar search error: {e}", exc_info=True)
         return f"Failed to search past events: {e}"
 
