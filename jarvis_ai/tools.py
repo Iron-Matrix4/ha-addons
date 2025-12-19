@@ -2468,15 +2468,15 @@ def analyze_camera(camera_entity: str, question: str = "What do you see in this 
             logger.error(f"DEBUG: config module = {config}")
             logger.error(f"DEBUG: hasattr GCP_LOCATION = {hasattr(config, 'GCP_LOCATION')}")
             
-            vertexai.init(project=config.GCP_PROJECT_ID, location=gcp_location)
+            vertexai.init(project=config.GCP_PROJECT_ID, location="us-central1")
             
-            # Use Gemini 2.0 Flash Exp for vision (better scene descriptions)
+            # Use Gemini 2.0 Flash Exp for vision (available in us-central1)
             model = GenerativeModel("gemini-2.0-flash-exp")
             
             # Create image part
             image_part = Part.from_data(image_data, mime_type="image/jpeg")
             
-            logger.info(f"Sending image to Vertex AI Gemini Vision (gemini-2.0-flash-exp) for analysis")
+            logger.info(f"Sending image to Vertex AI Gemini Vision for analysis")
             response = model.generate_content([question, image_part])
             
             return f"Camera analysis for {camera_entity}:\n{response.text}"
