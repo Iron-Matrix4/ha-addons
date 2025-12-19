@@ -228,7 +228,7 @@ UNIFI NETWORK QUERIES:
             
             response = self.chat.send_message(
                 full_message,
-                generation_config={"temperature": 0.7, "max_output_tokens": 256}
+                generation_config={"temperature": 0.7, "max_output_tokens": 1024}
             )
             
             # Loop through function calls until we get text
@@ -348,7 +348,7 @@ UNIFI NETWORK QUERIES:
                     try:
                         response = self.chat.send_message(
                             f"Function results:\n{combined_results}",
-                            generation_config={"temperature": 0.7, "max_output_tokens": 256}
+                            generation_config={"temperature": 0.7, "max_output_tokens": 1024}
                         )
                     except Exception as model_error:
                         # Handle malformed response errors - retry with simpler format
