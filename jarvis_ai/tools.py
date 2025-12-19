@@ -2458,6 +2458,12 @@ def analyze_camera(camera_entity: str, question: str = "What do you see in this 
             # Initialize Vertex AI for vision analysis
             # Fallback to europe-west1 (confirmed supported region, closer to UK)
             gcp_location = getattr(config, 'GCP_LOCATION', 'europe-west1')
+            
+            # DEBUG: Log what value is actually being passed
+            logger.error(f"DEBUG: GCP_LOCATION value = '{gcp_location}' (type: {type(gcp_location)})")
+            logger.error(f"DEBUG: config module = {config}")
+            logger.error(f"DEBUG: hasattr GCP_LOCATION = {hasattr(config, 'GCP_LOCATION')}")
+            
             vertexai.init(project=config.GCP_PROJECT_ID, location=gcp_location)
             
             # Use user-configured model
