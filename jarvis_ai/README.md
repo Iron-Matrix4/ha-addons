@@ -63,7 +63,9 @@ An intelligent voice-controlled conversation agent for Home Assistant, powered b
 
 | Feature | Description |
 |---------|-------------|
-| **Google Calendar** | Add events and list upcoming schedule |
+| **Google Calendar** | Add events with natural language ("lunch today", "dinner tomorrow") |
+| **Calendar Colors** | Set custom color names ("Remember my color is blue") |
+| **Past Events** | Search calendar history ("When was the last time I...") |
 | **Location Reminders** | "Remind me when I get home" |
 | **Timers** | Set countdown timers |
 | **Current Time** | Get current date/time |
@@ -119,6 +121,32 @@ See [INSTALL.md](INSTALL.md) for detailed step-by-step instructions.
 
 ---
 
+## What You Need
+
+### The Jarvis AI Add-on (Required)
+
+This is the **conversation agent** that runs inside Home Assistant. It's required for all features.
+
+**Install from**: Settings → Add-ons → Add-on Store → Jarvis AI
+
+---
+
+### The Custom Integration (Optional)
+
+**Only needed if you want:**
+
+- HTTP API access to Jarvis from outside HA
+- Custom automations calling Jarvis directly
+- Advanced scripting with Jarvis responses
+
+**Most users don't need this** - the add-on alone provides full voice control.
+
+**Install via HACS**: [ha-integrations repository](https://github.com/Iron-Matrix4/ha-integrations)
+
+See [Integration Setup](#custom-integration-setup-optional) below for installation steps.
+
+---
+
 ## Configuration
 
 ### AI Provider (Choose One)
@@ -156,13 +184,43 @@ See [INSTALL.md](INSTALL.md) for detailed step-by-step instructions.
 
 ## Integrations
 
+### 🔌 Custom Integration Setup (Optional)
+
+**What it provides**: HTTP API access to Jarvis for custom automations and external control
+
+**Do you need this?**
+
+- ❌ **NO** if you only want voice control via HA's voice pipeline
+- ✅ **YES** if you want to call Jarvis from automations or external scripts
+
+#### Installation via HACS (Recommended)
+
+1. **Open HACS** → Integrations
+2. Click **⋮** (top right) → Custom repositories
+3. Add repository: `https://github.com/Iron-Matrix4/ha-integrations`
+4. Category: Integration
+5. Click **Add**
+6. Search for "Jarvis AI" → **Download**
+7. **Restart Home Assistant**
+8. Go to Settings → Devices & Services → **Add Integration**
+9. Search "Jarvis" → Configure
+
+#### Manual Installation
+
+1. **Download** the latest release from [ha-integrations](https://github.com/Iron-Matrix4/ha-integrations/releases)
+2. **Extract** to `/config/custom_components/jarvis_ai/`
+3. **Restart** Home Assistant
+4. Go to Settings → Devices & Services → Add Integration → "Jarvis"
+
+---
+
 ### 🔌 HTTP API Integration (Required for non-Wyoming usage)
 
 To control Jarvis independently or via HTTP, install the custom integration.
 
 **[Installation Guide](https://github.com/Iron-Matrix4/ha-integrations)** (HACS Recommended)
 
-All integrations are **optional**. Leave settings empty to disable features you don't need.
+All integrations below are **optional**. Leave settings empty to disable features you don't need.
 
 ### 🔍 Google Search
 
@@ -210,13 +268,19 @@ All integrations are **optional**. Leave settings empty to disable features you 
 
 ### 📅 Google Calendar
 
-**Enables**: Add events, list upcoming schedule
+**Enables**: Add events, list schedule, search past events
 
 | Setting | Description | How to Get |
 |---------|-------------|------------|
 | `google_calendar_id` | Your calendar ID | Usually your email address, or found in Calendar Settings |
 
 > **Note**: Requires GCP service account with Calendar API access. The service account email must be shared with your calendar.
+
+**New in v1.3.1:**
+
+- **Natural time parsing**: "lunch today", "midday", "dinner tomorrow"
+- **Custom colors**: "Remember my color is blue" then "Add event with my color"
+- **Past events**: "When was the last time I had lunch with John?"
 
 ---
 
@@ -393,7 +457,11 @@ All integrations are **optional**. Leave settings empty to disable features you 
 
 ```
 "What's my schedule for today?"
-"Add meeting with John tomorrow at 2pm"
+"Add meeting with John at lunch today"
+"Add dentist appointment tomorrow at 2pm with my color"
+"Remember my color is blue"
+"When was the last time I had lunch with Sarah?"
+"Search past events for doctor"
 "Remind me to take out the bins when I get home"
 "Set a timer for 10 minutes"
 "What's the time?"
@@ -547,6 +615,10 @@ For the authentic J.A.R.V.I.S. voice, install the custom Piper voice model:
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 1.3.1 | 2025-12-19 | Calendar: Past event search, improved date parsing (lunch, midday, dinner), custom color names |
+| 1.3.0 | 2025-12-19 | Calendar: Color support with custom names, improved location triggers |
+| 1.2.9 | 2025-12-19 | Google Calendar authentication fix |
+| 1.2.8 | 2025-12-19 | Camera analysis: Vision model optimization, increased token limits |
 | 1.0.5 | 2025-12-18 | Codebase cleanup: removed legacy files, streamlined to 17 essential files |
 | 1.0.4 | 2025-12-17 | GitHub repository hosting, one-click install button, Vertex AI setup guide |
 | 1.0.3 | 2025-12-17 | Added custom icon, documentation overhaul |

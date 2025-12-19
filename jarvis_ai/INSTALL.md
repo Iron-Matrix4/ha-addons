@@ -4,6 +4,26 @@ This guide walks you through setting up Jarvis AI from scratch, including all op
 
 ---
 
+## What Am I Installing?
+
+### Two Components Available
+
+1. **Jarvis AI Add-on** (Required)
+   - The conversation agent/brain
+   - Runs inside Home Assistant
+   - Enables voice control, all smart home features
+   - **Everyone needs this**
+
+2. **Jarvis Custom Integration** (Optional)
+   - HTTP API for external access
+
+- Only needed for: custom automations, HTTP control, external scripts
+  - **Most users don't need this**
+
+**This guide focuses on the add-on**. See [Custom Integration Setup](#custom-integration-optional) at the end if needed.
+
+---
+
 ## Table of Contents
 
 1. [Prerequisites](#prerequisites)
@@ -300,7 +320,7 @@ For the authentic J.A.R.V.I.S. voice:
 
 ### Google Calendar
 
-**What it enables**: "Add meeting tomorrow at 2pm" / "What's on my calendar?"
+**What it enables**: "Add meeting at lunch today" / "What's on my calendar?" / "When was the last time I..."
 
 1. **Create Service Account**:
    - Google Cloud Console → IAM & Admin → Service Accounts
@@ -321,17 +341,22 @@ For the authentic J.A.R.V.I.S. voice:
    - Copy the Calendar ID (usually your email address)
 
 5. **Deploy credentials file**:
-   - Copy the JSON file to your HA:
-
-     ```bash
-     scp gcp-credentials.json root@YOUR_HA_IP:/addons/jarvis_ai/.cache/google_credentials.json
-     ```
+   - Copy the JSON file to `/data/gcp-credentials.json` in the addon
 
 6. **Add to configuration**:
 
    ```yaml
    google_calendar_id: "your.email@gmail.com"
    ```
+
+**New Features (v1.3.1):**
+
+```
+"Add meeting at lunch today"         # Natural time: lunch, midday, dinner
+"Remember my color is blue"           # Save custom color names
+"Add dentist with my color"           # Use saved colors
+"When was the last time I saw John?"  # Search past events
+```
 
 ---
 
