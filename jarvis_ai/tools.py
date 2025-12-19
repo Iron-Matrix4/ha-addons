@@ -2403,7 +2403,7 @@ def query_unifi_controller(query_type: str, subnet: str = "", client_id: str = "
 
 # ===== CAMERA ANALYSIS (GEMINI VISION) =====
 
-def analyze_camera(camera_entity: str, question: str = "Describe what you see in the scene. Focus on objects, people, and activities."):
+def analyze_camera(camera_entity: str, question: str = "What do you see in this image?"):
     """
     Analyze a camera snapshot using Gemini Vision.
     Grabs a snapshot from a Home Assistant camera entity and sends it to Gemini for analysis.
@@ -2470,18 +2470,16 @@ def analyze_camera(camera_entity: str, question: str = "Describe what you see in
             
             vertexai.init(project=config.GCP_PROJECT_ID, location=gcp_location)
             
-            # Use user-configured model (simple approach that works)
-            model = GenerativeModel(config.GEMINI_MODEL)
+            # Use Gemini 2.0 Flash for vision (best for image analysis)
+            model = GenerativeModel("gemini-2.0-flash-exp")
             
             # Create image part
             image_part = Part.from_data(image_data, mime_type="image/jpeg")
             
-            logger.debug(f"Sending image to Vertex AI Vision ({gcp_location}) for analysis")
+            logger.info(f"Sending image to Vertex AI Gemini Vision for analysis")
             response = model.generate_content([question, image_part])
             
-            # Clean response text (remove bullet points etc if model ignores system prompt)
-            analysis = response.text.replace("*", "").replace("- ", "").strip()
-            return f"Camera analysis for {camera_entity}:\n{analysis}"
+            return f"Camera analysis for {camera_entity}:\n{response.text}"
         
         else:
             # AI Studio mode (original implementation)
