@@ -49,7 +49,7 @@ class JarvisConversation:
             location="us-central1"
         )
         
-        # Get configured model (defaults to gemini-2.5-flash-lite)
+        # Get configured model (defaults to gemini-2.5-flash)
         model_name = config.GEMINI_MODEL
         
         # Import Vertex AI tools

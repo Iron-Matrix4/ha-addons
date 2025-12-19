@@ -13,7 +13,7 @@ logger.info(f"GEMINI_API_KEY present: {bool(os.getenv('GEMINI_API_KEY'))}")
 
 # ===== API KEYS =====
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash-lite")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 GCP_PROJECT_ID = os.getenv("GCP_PROJECT_ID", "")
 # Fix: HA passes "null" as a string when not set, need to treat it as empty
 _gcp_location = os.getenv("GCP_LOCATION", "europe-west1")
