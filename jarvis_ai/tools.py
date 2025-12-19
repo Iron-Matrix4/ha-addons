@@ -2470,30 +2470,17 @@ def analyze_camera(camera_entity: str, question: str = "What do you see in this 
             
             vertexai.init(project=config.GCP_PROJECT_ID, location=gcp_location)
             
-            # Use user-configured model with generation config for better responses
-            from vertexai.generative_models import GenerationConfig
-            
-            generation_config = GenerationConfig(
-                temperature=0.7,  # More creative/natural than 0.4
-                max_output_tokens=1024,  # Allow detailed descriptions
-            )
-            
-            model = GenerativeModel(
-                config.GEMINI_MODEL,
-                generation_config=generation_config
-            )
+            # Use user-configured model (simple approach that works)
+            model = GenerativeModel(config.GEMINI_MODEL)
             
             # Create image part
             image_part = Part.from_data(image_data, mime_type="image/jpeg")
             
-            # Enhance the question for better context
-            enhanced_question = f"{question} Please provide a detailed, natural description of what you observe."
+            logger.debug(f"Sending image to Vertex AI Vision ({gcp_location}) for analysis")
+            response = model.generate_content([question, image_part])
             
-            logger.debug(f"Sending image to Vertex AI Vision ({config.GCP_LOCATION}) for analysis")
-            response = model.generate_content([enhanced_question, image_part])
-            
-            # Return the analysis without aggressive cleaning (preserve natural formatting)
-            analysis = response.text.strip()
+            # Clean response text (remove bullet points etc if model ignores system prompt)
+            analysis = response.text.replace("*", "").replace("- ", "").strip()
             return f"Camera analysis for {camera_entity}:\n{analysis}"
         
         else:
