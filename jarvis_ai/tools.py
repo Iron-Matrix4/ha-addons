@@ -2848,7 +2848,8 @@ def _get_calendar_color_id(color_name: str) -> str:
     
     # Check if it's a custom color name saved in preferences
     memory = _get_memory()
-    pref_key = f"calendar_color_{color_lower.replace(' ', '_').replace(\"'\", '')}"
+    sanitized_name = color_lower.replace(' ', '_').replace("'", '')
+    pref_key = f'calendar_color_{sanitized_name}'
     saved_color_id = memory.get_preference(pref_key)
     
     if saved_color_id:
@@ -2960,7 +2961,8 @@ def save_calendar_color(color_name: str, color_id_or_standard: str):
         
         # Save to preferences
         memory = _get_memory()
-        pref_key = f"calendar_color_{color_name.lower().replace(' ', '_').replace(\"'\", '')}"
+        sanitized_name = color_name.lower().replace(' ', '_').replace("'", '')
+        pref_key = f'calendar_color_{sanitized_name}'
         memory.set_preference(pref_key, color_id)
         
         logger.info(f"Saved custom calendar color: '{color_name}' -> {color_id}")
@@ -3104,6 +3106,65 @@ def search_past_calendar_events(search_term: str = "", days_back: int = 30):
     except Exception as e:
         logger.error(f"Past calendar search error: {e}", exc_info=True)
         return f"Failed to search past events: {e}"
+
+
+def test_device_tracker_history():
+    """
+    Test function to check if HA history API works for device trackers.
+    Shows what data is available for implementing 'when was last time' queries.
+    """
+    try:
+        from datetime import datetime, timedelta
+        import requests
+        
+        # Get history for last 24 hours
+        end_time = datetime.now()
+        start_time = end_time - timedelta(hours=24)
+        start_str = start_time.isoformat()
+        
+        # Try to get all history
+        url = f"{config.HA_URL}/api/history/period/{start_str}"
+        headers = {
+            "Authorization": f"Bearer {config.HA_TOKEN}",
+            "Content-Type": "application/json"
+        }
+        
+        response = requests.get(url, headers=headers, timeout=15)
+        response.raise_for_status()
+        
+        data = response.json()
+        
+        # Find device trackers and person entities
+        results = []
+        results.append(f"History API works! Got {len(data)} entity histories")
+        results.append("\nDevice trackers and person entities:")
+        
+        for entity_history in data:
+            if not entity_history or len(entity_history) == 0:
+                continue
+                
+            entity_id = entity_history[0].get('entity_id', '')
+            
+            if 'device_tracker' in entity_id or 'person' in entity_id:
+                states_count = len(entity_history)
+                recent_states = [s.get('state') for s in entity_history[-5:]]  # Last 5 states
+                
+                results.append(f"\n{entity_id}:")
+                results.append(f"  Total state changes: {states_count}")
+                results.append(f"  Recent states: {', '.join(recent_states)}")
+                
+                # Show one full state with timestamp
+                if entity_history:
+                    sample = entity_history[-1]
+                    last_changed = sample.get('last_changed', 'unknown')
+                    state = sample.get('state', 'unknown')
+                    results.append(f"  Last: '{state}' at {last_changed}")
+        
+        return "\n".join(results)
+        
+    except Exception as e:
+        logger.error(f"Device tracker history test error: {e}", exc_info=True)
+        return f"Test failed: {e}"
 
 
 # ===== LOCATION REMINDERS =====
