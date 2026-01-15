@@ -93,6 +93,9 @@ fi
 echo "Starting ASF..."
 echo "ASF IPC web interface will be available on port 1242"
 
+# Start auto-trigger script in background
+/etc/cont-init.d/auto_trigger.sh &
+
 # Start ASF with config directory
 # Start ASF with config directory using dotnet, pipe output to monitor for notifications
 cd /app/asf
