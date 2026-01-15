@@ -1,5 +1,5 @@
 name: "ArchiSteamFarm - Steam Free Games"
-version: "1.1.0"
+version: "1.1.1"
 slug: asf_steam_claimer
 description: "Standalone ASF addon for automatically claiming free Steam games with configurable review score filtering"
 homeassistant_api: true
