@@ -74,6 +74,7 @@ cat > /config/asf/config/SteamBot.json <<EOF
   ],
   "FarmingPreferences": $FARMING_PREFS,
   "FarmingOrders": [$FARMING_ORDER],
+  "GamesPlayedWhileIdle": [],
   "IdleRefundableGames": $IDLE_REFUNDABLE,
   "IdlePriorityQueueOnly": false,
   "SendOnFarmingFinished": $NOTIFY_FARMING
