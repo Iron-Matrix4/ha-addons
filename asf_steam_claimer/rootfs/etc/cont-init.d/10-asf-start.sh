@@ -93,10 +93,34 @@ fi
 echo "Starting ASF..."
 echo "ASF IPC web interface will be available on port 1242"
 
-# Start auto-trigger script in background
-/etc/cont-init.d/auto_trigger.sh &
-
-# Start ASF with config directory
-# Start ASF with config directory using dotnet, pipe output to monitor for notifications
+# Start ASF in background and capture PID
 cd /app/asf
-dotnet ArchiSteamFarm.dll --path /config/asf | /etc/cont-init.d/monitor_claims.sh
+dotnet ArchiSteamFarm.dll --path /config/asf | /etc/cont-init.d/monitor_claims.sh &
+ASF_PID=$!
+
+# Wait for ASF to start and trigger farming
+(
+    echo "[Trigger] Waiting for ASF IPC to be ready..."
+    sleep 15
+    
+    # Wait for IPC endpoint
+    for i in $(seq 1 30); do
+        if curl -s http://localhost:1242/Api/ASF >/dev/null 2>&1; then
+            echo "[Trigger] ASF IPC ready!"
+            break
+        fi
+        sleep 1
+    done
+    
+    # Trigger farming
+    sleep 5
+    echo "[Trigger] Sending start command..."
+    curl -X POST "http://localhost:1242/Api/Command" \
+        -H "Content-Type: application/json" \
+        -d '{"Command":"start SteamBot"}' 2>/dev/null
+    
+    echo "[Trigger] ASF farming loop triggered!"
+) &
+
+# Wait for ASF process
+wait $ASF_PID
