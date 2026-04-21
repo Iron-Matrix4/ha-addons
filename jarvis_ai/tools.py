@@ -3,6 +3,7 @@ Tool functions for Jarvis Home Assistant Add-on.
 Provides Home Assistant control, Spotify, Radarr, Sonarr, web search, and contextual knowledge.
 """
 import requests
+import os
 import json
 import time
 import threading
