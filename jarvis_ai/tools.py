@@ -2445,39 +2445,40 @@ def analyze_camera(camera_entity: str, question: str = "Describe this scene in a
         # Step 2: Send to Gemini Vision
         # Use Vertex AI if configured, otherwise use AI Studio
         if config.GCP_PROJECT_ID:
-            # Vertex AI mode
-            import vertexai
-            from vertexai.generative_models import GenerativeModel, Part
-            import os
-            
-            # Initialize Vertex AI
-            credentials_path = "/data/gcp-credentials.json"
-            if os.path.exists(credentials_path):
-                os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = credentials_path
-            
-            # Initialize Vertex AI for vision analysis
-            gcp_location = getattr(config, 'GCP_LOCATION', 'europe-west1')
-            
-            # Handle invalid values
-            if not gcp_location or str(gcp_location).lower() in ['null', 'none', '']:
-                gcp_location = 'europe-west1'
-            
             try:
-                # Use us-central1 for vision as it has the most reliable availability for new models
-                vertexai.init(project=config.GCP_PROJECT_ID, location="us-central1")
+                # Use modern google-genai SDK (Vertex AI mode)
+                from google import genai
+                from google.genai import types
                 
-                # Use Gemini 3.0 Flash (Stable) for vision
-                model = GenerativeModel("gemini-3.0-flash-001")
+                # Configure client with credentials
+                credentials_path = "/data/gcp-credentials.json"
+                if os.path.exists(credentials_path):
+                    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = credentials_path
                 
-                # Create image part
-                image_part = Part.from_data(image_data, mime_type="image/jpeg")
+                client = genai.Client(
+                    vertexai=True,
+                    project=config.GCP_PROJECT_ID,
+                    location="us-central1"
+                )
                 
-                logger.info(f"Sending image to Vertex AI Gemini 3 Vision for analysis (us-central1)")
-                response = model.generate_content([question, image_part])
+                logger.info(f"Sending image to Vertex AI Gemini 3.0 via modern SDK (us-central1)")
+                
+                response = client.models.generate_content(
+                    model='gemini-3.0-flash-001',
+                    contents=[
+                        types.Content(
+                            parts=[
+                                types.Part.from_text(text=question),
+                                types.Part.from_bytes(data=image_data, mime_type='image/jpeg')
+                            ]
+                        )
+                    ]
+                )
+                
                 return response.text
             except Exception as e:
                 if "404" in str(e):
-                    logger.error(f"Vertex AI 404: {e}. Check Model Garden for 'gemini-3-flash-preview'.")
+                    logger.error(f"Vertex AI 404: {e}. Check Model Garden for 'gemini-3.0-flash-001'.")
                     return "Vertex AI Error: Model not found (404). Please ensure 'Gemini 3 Flash' is enabled in your Google Cloud Console."
                 raise e
         
