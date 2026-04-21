@@ -2494,6 +2494,8 @@ def analyze_camera(camera_entity: str, question: str = "Describe this scene in a
                             "inline_data": {
                                 "mime_type": content_type,
                                 "data": image_base64
+                            }
+                        }
                     ]
                 }]
             }
