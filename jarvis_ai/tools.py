@@ -2468,39 +2468,35 @@ def analyze_camera(camera_entity: str, question: str = "Describe this scene in a
             logger.error(f"DEBUG: config module = {config}")
             logger.error(f"DEBUG: hasattr GCP_LOCATION = {hasattr(config, 'GCP_LOCATION')}")
             
-            vertexai.init(project=config.GCP_PROJECT_ID, location=gcp_location)
-            
-            # Use Gemini 2.0 Flash for vision (exact Model ID from Model Garden)
-            model = GenerativeModel("gemini-2.0-flash-001")
-            
-            # Create image part
-            image_part = Part.from_data(image_data, mime_type="image/jpeg")
-            
-            logger.info(f"Sending image to Vertex AI Gemini Vision for analysis")
-            response = model.generate_content([question, image_part])
-            
-            # Return just the vision analysis without mentioning camera entity
-            return response.text
+            try:
+                vertexai.init(project=config.GCP_PROJECT_ID, location=gcp_location)
+                model = GenerativeModel("gemini-2.0-flash-001")
+                image_part = Part.from_data(image_data, mime_type="image/jpeg")
+                logger.info(f"Sending image to Vertex AI Vision ({gcp_location})")
+                response = model.generate_content([question, image_part])
+                return response.text
+            except Exception as vertex_err:
+                logger.warning(f"Vertex AI Vision failed: {vertex_err}. Falling back to AI Studio...")
+                pass # Fall through to AI Studio implementation below
         
-        else:
-            # AI Studio mode (original implementation)
-            image_base64 = base64.b64encode(image_data).decode('utf-8')
-            content_type = snapshot_response.headers.get('Content-Type', 'image/jpeg')
-            
-            gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/{config.GEMINI_MODEL}:generateContent?key={config.GEMINI_API_KEY}"
-            
-            vision_payload = {
-                "contents": [{
-                    "parts": [
-                        {"text": question},
-                        {
-                            "inline_data": {
-                                "mime_type": content_type,
-                                "data": image_base64
-                            }
+        # AI Studio mode (Fallback)
+        image_base64 = base64.b64encode(image_data).decode('utf-8')
+        content_type = snapshot_response.headers.get('Content-Type', 'image/jpeg')
+        vision_model = config.GEMINI_MODEL if "flash" in config.GEMINI_MODEL.lower() else "gemini-1.5-flash"
+        gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/{vision_model}:generateContent?key={config.GEMINI_API_KEY}"
+        
+        vision_payload = {
+            "contents": [{
+                "parts": [
+                    {"text": question},
+                    {
+                        "inline_data": {
+                            "mime_type": content_type,
+                            "data": image_base64
                         }
-                    ]
-                }],
+                    }
+                ]
+            }],
                 "generationConfig": {
                     "temperature": 0.4,
                     "maxOutputTokens": 512
