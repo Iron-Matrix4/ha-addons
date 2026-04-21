@@ -1,22 +1,21 @@
 """
-Vertex AI function declarations for Jarvis tools.
-Defines tools in the format required by Vertex AI Gemini.
+Vertex AI function declarations for Jarvis tools using the modern google-genai SDK.
 """
-from vertexai.generative_models import FunctionDeclaration, Tool
+from google.genai import types
 
-# Home Assistant Control
-control_home_assistant_func = FunctionDeclaration(
-    name="control_home_assistant",
-    description="Control a Home Assistant entity (lights, switches, climate devices, etc.)",
-    parameters={
-        "type": "object",
+# Function Declarations defined as dictionaries for the new SDK
+control_home_assistant_func = {
+    "name": "control_home_assistant",
+    "description": "Control a Home Assistant entity (lights, switches, climate devices, etc.)",
+    "parameters": {
+        "type": "OBJECT",
         "properties": {
             "entity_id": {
-                "type": "string",
+                "type": "STRING",
                 "description": "The ID of the entity (e.g., 'light.office', 'climate.bedroom')"
             },
             "command": {
-                "type": "string",
+                "type": "STRING",
                 "description": "The action to perform",
                 "enum": [
                     "turn_on", "turn_off", "toggle",
@@ -28,512 +27,343 @@ control_home_assistant_func = FunctionDeclaration(
                 ]
             },
             "parameter": {
-                "type": "string",
-                "description": "Optional parameter: temperature value, hvac_mode (heat/cool/auto/off), cover position (0-100), brightness (0-100), color name or RGB (255,0,0)"
+                "type": "STRING",
+                "description": "Optional parameter: temperature value, hvac_mode, etc."
             }
         },
         "required": ["entity_id", "command"]
     }
-)
+}
 
-get_ha_state_func = FunctionDeclaration(
-    name="get_ha_state",
-    description="Get the current state of a Home Assistant entity (temperature, light status, etc.)",
-    parameters={
-        "type": "object",
+get_ha_state_func = {
+    "name": "get_ha_state",
+    "description": "Get the current state of a Home Assistant entity",
+    "parameters": {
+        "type": "OBJECT",
         "properties": {
-            "entity_id": {
-                "type": "string",
-                "description": "The ID of the entity to query (e.g., 'sensor.office_temperature')"
-            }
+            "entity_id": {"type": "STRING", "description": "The ID of the entity"}
         },
         "required": ["entity_id"]
     }
-)
+}
 
-search_ha_entities_func = FunctionDeclaration(
-    name="search_ha_entities",
-    description="Search for Home Assistant entities by name when you don't know the exact entity_id",
-    parameters={
-        "type": "object",
+search_ha_entities_func = {
+    "name": "search_ha_entities",
+    "description": "Search for Home Assistant entities by name",
+    "parameters": {
+        "type": "OBJECT",
         "properties": {
-            "query": {
-                "type": "string",
-                "description": "Search query (e.g., 'office light', 'bedroom temperature')"
-            }
+            "query": {"type": "STRING", "description": "Search query"}
         },
         "required": ["query"]
     }
-)
+}
 
-get_person_location_func = FunctionDeclaration(
-    name="get_person_location",
-    description="Get the current location of a person from Home Assistant person entities. Use when asked 'where is [name]' or similar location questions.",
-    parameters={
-        "type": "object",
+get_person_location_func = {
+    "name": "get_person_location",
+    "description": "Get the current location of a person",
+    "parameters": {
+        "type": "OBJECT",
         "properties": {
-            "person_name": {
-                "type": "string",
-                "description": "Name of the person to locate (e.g., 'John', 'Sarah')"
-            }
+            "person_name": {"type": "STRING", "description": "Name of the person"}
         },
         "required": ["person_name"]
     }
-)
+}
 
-get_appliance_status_func = FunctionDeclaration(
-    name="get_appliance_status",
-    description="Get intelligent status of an appliance including time remaining until completion. Automatically finds relevant sensors for washing machine, dryer, dishwasher, etc. Use when asked 'how long until X is done' or 'when will X finish'.",
-    parameters={
-        "type": "object",
+get_appliance_status_func = {
+    "name": "get_appliance_status",
+    "description": "Get intelligent status of an appliance",
+    "parameters": {
+        "type": "OBJECT",
         "properties": {
-            "appliance_name": {
-                "type": "string",
-                "description": "Name of the appliance (e.g., 'washing machine', 'dryer', 'dishwasher', 'oven')"
-            }
+            "appliance_name": {"type": "STRING", "description": "Name of the appliance"}
         },
         "required": ["appliance_name"]
     }
-)
+}
 
-# Weather
-get_weather_func = FunctionDeclaration(
-    name="get_weather",
-    description="Get comprehensive weather including current conditions, hourly forecast, and precipitation. Includes umbrella recommendations.",
-    parameters={
-        "type": "object",
+get_weather_func = {
+    "name": "get_weather",
+    "description": "Get comprehensive weather",
+    "parameters": {
+        "type": "OBJECT",
         "properties": {
-            "city": {
-                "type": "string",
-                "description": "City name (default: 'London')"
-            },
-            "forecast_hours": {
-                "type": "integer",
-                "description": "Number of hours to forecast for precipitation (default: 12)"
-            }
-        },
-        "required": []
+            "city": {"type": "STRING", "description": "City name"},
+            "forecast_hours": {"type": "INTEGER", "description": "Hours to forecast"}
+        }
     }
-)
+}
 
-# Travel Time
-get_travel_time_func = FunctionDeclaration(
-    name="get_travel_time",
-    description="Get real-time travel time between two locations with current traffic conditions using Google Maps",
-    parameters={
-        "type": "object",
+get_travel_time_func = {
+    "name": "get_travel_time",
+    "description": "Get real-time travel time",
+    "parameters": {
+        "type": "OBJECT",
         "properties": {
-            "origin": {
-                "type": "string",
-                "description": "Starting location - address, place name, or 'home' to use saved home location"
-            },
-            "destination": {
-                "type": "string",
-                "description": "Destination - address or place name"
-            },
-            "mode": {
-                "type": "string",
-                "description": "Travel mode: 'driving', 'walking', 'bicycling', or 'transit'",
-                "enum": ["driving", "walking", "bicycling", "transit"]
-            }
+            "origin": {"type": "STRING", "description": "Starting location"},
+            "destination": {"type": "STRING", "description": "Destination"},
+            "mode": {"type": "STRING", "enum": ["driving", "walking", "bicycling", "transit"]}
         },
         "required": ["origin", "destination"]
     }
-)
+}
 
-# Web Search
-google_search_func = FunctionDeclaration(
-    name="google_search",
-    description="Search the web for general knowledge. Use this to answer questions you don't know.",
-    parameters={
-        "type": "object",
+google_search_func = {
+    "name": "google_search",
+    "description": "Search the web for general knowledge",
+    "parameters": {
+        "type": "OBJECT",
         "properties": {
-            "query": {
-                "type": "string",
-                "description": "Search query"
-            }
+            "query": {"type": "STRING", "description": "Search query"}
         },
         "required": ["query"]
     }
-)
+}
 
-# Google Calendar
-add_calendar_event_func = FunctionDeclaration(
-    name="add_calendar_event",
-    description="Add an event or reminder to Google Calendar. Supports natural language dates like 'tomorrow at 2pm' or 'Friday at 10am'.",
-    parameters={
-        "type": "object",
+add_calendar_event_func = {
+    "name": "add_calendar_event",
+    "description": "Add an event to Google Calendar",
+    "parameters": {
+        "type": "OBJECT",
         "properties": {
-            "title": {
-                "type": "string",
-                "description": "Event title or reminder description"
-            },
-            "date_time": {
-                "type": "string",
-                "description": "When the event starts. Natural language (e.g., 'tomorrow at 2pm', 'Friday at 10am', 'next Monday 3pm') or ISO format"
-            },
-            "duration_minutes": {
-                "type": "integer",
-                "description": "Event duration in minutes. Default: 60"
-            },
-            "description": {
-                "type": "string",
-                "description": "Optional event description or notes"
-            }
+            "title": {"type": "STRING"},
+            "date_time": {"type": "STRING"},
+            "duration_minutes": {"type": "INTEGER"}
         },
         "required": ["title", "date_time"]
     }
-)
+}
 
-list_calendar_events_func = FunctionDeclaration(
-    name="list_calendar_events",
-    description="List upcoming calendar events. Use this when user asks 'what's on my calendar' or 'do I have anything scheduled'.",
-    parameters={
-        "type": "object",
+list_calendar_events_func = {
+    "name": "list_calendar_events",
+    "description": "List upcoming calendar events",
+    "parameters": {
+        "type": "OBJECT",
         "properties": {
-            "days_ahead": {
-                "type": "integer",
-                "description": "Number of days to look ahead. Default: 7"
-            }
-        },
-        "required": []
+            "days_ahead": {"type": "INTEGER"}
+        }
     }
-)
+}
 
-create_location_reminder_func = FunctionDeclaration(
-    name="create_location_reminder",
-    description="Create a reminder that triggers when user arrives at a location (e.g., 'remind me to X when I get home'). Uses person tracker.",
-    parameters={
-        "type": "object",
+create_location_reminder_func = {
+    "name": "create_location_reminder",
+    "description": "Create a location-based reminder",
+    "parameters": {
+        "type": "OBJECT",
         "properties": {
-            "message": {
-                "type": "string",
-                "description": "Reminder message (what to remind about)"
-            },
-            "location": {
-                "type": "string",
-                "description": "Target location state. Default: 'home'. Can be 'home', 'work', 'away', etc."
-            },
-            "person_entity": {
-                "type": "string",
-                "description": "Person entity to track. Default: 'person.user'"
-            }
+            "message": {"type": "STRING"},
+            "location": {"type": "STRING"}
         },
         "required": ["message"]
     }
-)
+}
 
-# Music
-play_music_func = FunctionDeclaration(
-    name="play_music",
-    description="Play music on Spotify using Spotcast. Works on any media player device.",
-    parameters={
-        "type": "object",
+play_music_func = {
+    "name": "play_music",
+    "description": "Play music on Spotify",
+    "parameters": {
+        "type": "OBJECT",
         "properties": {
-            "query": {
-                "type": "string",
-                "description": "Song name, artist, or album to search for (e.g., 'Bohemian Rhapsody', 'Queen', 'Dark Side of the Moon')"
-            },
-            "device": {
-                "type": "string",
-                "description": "Device name to play on (e.g., 'Office Display', 'Living Room TV'). If not specified, will ask user to choose."
-            },
-            "entity_id": {
-                "type": "string",
-                "description": "Optional specific media_player entity_id (e.g., 'media_player.office_display'). Rarely needed."
-            }
+            "query": {"type": "STRING"},
+            "device": {"type": "STRING"}
         },
         "required": ["query"]
     }
-)
+}
 
-# Memory
-save_preference_func = FunctionDeclaration(
-    name="save_preference",
-    description="Save user information to persistent memory. Use when user asks Jarvis to remember something (names, numbers, preferences, etc.). Does NOT save conversation context or errors.",
-    parameters={
-        "type": "object",
+save_preference_func = {
+    "name": "save_preference",
+    "description": "Save user preference",
+    "parameters": {
+        "type": "OBJECT",
         "properties": {
-            "name": {
-                "type": "string",
-                "description": "Preference key name (e.g., 'spouse_name', 'phone_number', 'favorite_color')"
-            },
-            "value": {
-                "type": "string",
-                "description": "Value to remember"
-            }
+            "name": {"type": "STRING"},
+            "value": {"type": "STRING"}
         },
         "required": ["name", "value"]
     }
-)
+}
 
-get_preference_func = FunctionDeclaration(
-    name="get_preference",
-    description="Retrieve saved user information from memory. Use when user asks what Jarvis remembers.",
-    parameters={
-        "type": "object",
+get_preference_func = {
+    "name": "get_preference",
+    "description": "Get user preference",
+    "parameters": {
+        "type": "OBJECT",
         "properties": {
-            "name": {
-                "type": "string",
-                "description": "Preference key to retrieve"
-            }
+            "name": {"type": "STRING"}
         },
         "required": ["name"]
     }
-)
+}
 
-delete_preference_func = FunctionDeclaration(
-    name="delete_preference",
-    description="Delete a saved preference from memory. Use when user wants to forget or remove a preference.",
-    parameters={
-        "type": "object",
+delete_preference_func = {
+    "name": "delete_preference",
+    "description": "Delete user preference",
+    "parameters": {
+        "type": "OBJECT",
         "properties": {
-            "name": {
-                "type": "string",
-                "description": "Preference key to delete (exact name)"
-            }
+            "name": {"type": "STRING"}
         },
         "required": ["name"]
     }
-)
+}
 
-# Utility
-get_current_time_func = FunctionDeclaration(
-    name="get_current_time",
-    description="Get current date and time. Use when user asks about the date, time, or needs date calculations (e.g., 'how many days until').",
-    parameters={
-        "type": "object",
-        "properties": {}
-    }
-)
+get_current_time_func = {
+    "name": "get_current_time",
+    "description": "Get current time",
+    "parameters": {"type": "OBJECT", "properties": {}}
+}
 
-# Radarr Query
-query_radarr_func = FunctionDeclaration(
-    name="query_radarr",
-    description="Query Radarr for movie library information and system status. Use for questions about movies, downloads, and Radarr status.",
-    parameters={
-        "type": "object",
+query_radarr_func = {
+    "name": "query_radarr",
+    "description": "Query Radarr movie library",
+    "parameters": {
+        "type": "OBJECT",
         "properties": {
-            "query_type": {
-                "type": "string",
-                "description": "Type of query",
-                "enum": ["status", "stats", "last_downloaded", "recent", "search", "missing"]
-            },
-            "movie_name": {
-                "type": "string",
-                "description": "Movie name (only needed for 'search' query)"
-            }
+            "query_type": {"type": "STRING", "enum": ["status", "stats", "last_downloaded", "recent", "search", "missing"]},
+            "movie_name": {"type": "STRING"}
         },
         "required": ["query_type"]
     }
-)
+}
 
-add_to_radarr_func = FunctionDeclaration(
-    name="add_to_radarr",
-    description="Add a movie to Radarr by name. Will search and add the best match.",
-    parameters={
-        "type": "object",
+add_to_radarr_func = {
+    "name": "add_to_radarr",
+    "description": "Add movie to Radarr",
+    "parameters": {
+        "type": "OBJECT",
         "properties": {
-            "movie_name": {
-                "type": "string",
-                "description": "Name of the movie to add"
-            }
+            "movie_name": {"type": "STRING"}
         },
         "required": ["movie_name"]
     }
-)
+}
 
-# Sonarr Query
-query_sonarr_func = FunctionDeclaration(
-    name="query_sonarr",
-    description="Query Sonarr for TV series library information and system status. Use for questions about TV shows, episodes, downloads, and Sonarr status.",
-    parameters={
-        "type": "object",
+query_sonarr_func = {
+    "name": "query_sonarr",
+    "description": "Query Sonarr series library",
+    "parameters": {
+        "type": "OBJECT",
         "properties": {
-            "query_type": {
-                "type": "string",
-                "description": "Type of query",
-                "enum": ["status", "stats", "last_downloaded", "recent", "search", "missing"]
-            },
-            "series_name": {
-                "type": "string",
-                "description": "Series name (only needed for 'search' query)"
-            }
+            "query_type": {"type": "STRING", "enum": ["status", "stats", "last_downloaded", "recent", "search", "missing"]},
+            "series_name": {"type": "STRING"}
         },
         "required": ["query_type"]
     }
-)
+}
 
-add_to_sonarr_func = FunctionDeclaration(
-    name="add_to_sonarr",
-    description="Add a TV series to Sonarr by name. Will search and add the best match.",
-    parameters={
-        "type": "object",
+add_to_sonarr_func = {
+    "name": "add_to_sonarr",
+    "description": "Add series to Sonarr",
+    "parameters": {
+        "type": "OBJECT",
         "properties": {
-            "series_name": {
-                "type": "string",
-                "description": "Name of the TV series to add"
-            }
+            "series_name": {"type": "STRING"}
         },
         "required": ["series_name"]
     }
-)
+}
 
-# qBittorrent Query
-query_qbittorrent_func = FunctionDeclaration(
-    name="query_qbittorrent",
-    description="Query qBittorrent for torrent download status and information. Use for questions about active downloads, speeds, and torrent status.",
-    parameters={
-        "type": "object",
+query_qbittorrent_func = {
+    "name": "query_qbittorrent",
+    "description": "Query qBittorrent status",
+    "parameters": {
+        "type": "OBJECT",
         "properties": {
-            "query_type": {
-                "type": "string",
-                "description": "Type of query",
-                "enum": ["status", "stats", "speed", "downloading", "completed"]
-            }
+            "query_type": {"type": "STRING", "enum": ["status", "stats", "speed", "downloading", "completed"]}
         },
         "required": ["query_type"]
     }
-)
+}
 
-# Prowlarr Query
-query_prowlarr_func = FunctionDeclaration(
-    name="query_prowlarr",
-    description="Query Prowlarr for indexer status and information. Use for questions about search indexers.",
-    parameters={
-        "type": "object",
+query_prowlarr_func = {
+    "name": "query_prowlarr",
+    "description": "Query Prowlarr status",
+    "parameters": {
+        "type": "OBJECT",
         "properties": {
-            "query_type": {
-                "type": "string",
-                "description": "Type of query",
-                "enum": ["status", "stats", "indexers"]
-            }
+            "query_type": {"type": "STRING", "enum": ["status", "stats", "indexers"]}
         },
         "required": ["query_type"]
     }
-)
+}
 
-# VPN Status Check
-check_vpn_status_func = FunctionDeclaration(
-    name="check_vpn_status",
-    description="Check if the VPN is connected on the download VM. Verifies qBittorrent connectivity and compares external IP to home WAN.",
-    parameters={
-        "type": "object",
-        "properties": {}
-    }
-)
+check_vpn_status_func = {
+    "name": "check_vpn_status",
+    "description": "Check VPN status",
+    "parameters": {"type": "OBJECT", "properties": {}}
+}
 
-# UniFi Network Query
-query_unifi_network_func = FunctionDeclaration(
-    name="query_unifi_network",
-    description="Query UniFi network information including WAN IP, connected devices, bandwidth, and uptime. Use for network status questions.",
-    parameters={
-        "type": "object",
+query_unifi_network_func = {
+    "name": "query_unifi_network",
+    "description": "Query UniFi network via Home Assistant",
+    "parameters": {
+        "type": "OBJECT",
         "properties": {
-            "query_type": {
-                "type": "string",
-                "description": "Type of query",
-                "enum": ["wan_ip", "devices", "bandwidth", "uptime", "stats"]
-            }
+            "query_type": {"type": "STRING", "enum": ["wan_ip", "devices", "bandwidth", "uptime", "stats"]}
         },
         "required": ["query_type"]
     }
-)
+}
 
-# Camera Analysis (Gemini Vision)
-analyze_camera_func = FunctionDeclaration(
-    name="analyze_camera",
-    description="Analyze a camera snapshot using AI vision. Use when user asks what's visible in a camera or area (e.g., 'What's in the garden?', 'Is anyone at the door?'). Grabs a snapshot and describes what it sees.",
-    parameters={
-        "type": "object",
+query_unifi_controller_func = {
+    "name": "query_unifi_controller",
+    "description": "Query UniFi Controller API directly",
+    "parameters": {
+        "type": "OBJECT",
         "properties": {
-            "camera_entity": {
-                "type": "string",
-                "description": "Entity ID of the camera (e.g., 'camera.garden', 'camera.front_door', or just 'garden')"
-            },
-            "question": {
-                "type": "string",
-                "description": "What to ask about the image (e.g., 'What do you see?', 'Are there any people?', 'What animals are visible?')"
-            }
+            "query_type": {"type": "STRING", "enum": ["dhcp_leases", "dhcp_stats", "next_ip", "network_stats", "clients_active", "clients_count", "wan_ip"]},
+            "subnet": {"type": "STRING"},
+            "client_id": {"type": "STRING"}
+        },
+        "required": ["query_type"]
+    }
+}
+
+analyze_camera_func = {
+    "name": "analyze_camera",
+    "description": "Analyze camera snapshot using AI vision",
+    "parameters": {
+        "type": "OBJECT",
+        "properties": {
+            "camera_entity": {"type": "STRING"},
+            "question": {"type": "STRING"}
         },
         "required": ["camera_entity"]
     }
-)
+}
 
-query_unifi_controller_func = FunctionDeclaration(
-    name="query_unifi_controller",
-    description="Query UniFi Controller for network information: DHCP leases, available IPs, client details/signal, bandwidth stats, alerts, device status, health, and port forwards.",
-    parameters={
-        "type": "object",
-        "properties": {
-            "query_type": {
-                "type": "string",
-                "description": "Type of query to perform",
-                "enum": [
-                    "dhcp_leases", 
-                    "dhcp_stats", 
-                    "next_ip",
-                    "network_stats",
-                    "clients_active", 
-                    "clients_count", 
-                    "clients_bandwidth",
-                    "network_info",
-                    "wan_ip",
-                    "client_signal",
-                    "client_details",
-                    "top_bandwidth",
-                    "recent_alerts",
-                    "device_status",
-                    "system_health",
-                    "port_forwards",
-                    "firewall_rules",
-                    "port_forwarding",
-                    "device_info",
-                    "blocked_traffic",
-                    "security_events"
-                ]
-            },
-            "subnet": {
-                "type": "string",
-                "description": "Subnet for next_ip/network_stats queries. Can be CIDR (e.g., '192.168.1.0/24') or network name (e.g., 'IoT'). Required for next_ip and network_stats."
-            },
-            "client_id": {
-                "type": "string",
-                "description": "Client identifier for client_signal/client_details queries. Can be hostname, IP address, or MAC address. Required for client-specific queries."
-            }
-        },
-        "required": ["query_type"]
-    }
-)
-
-# Create the Tool object for Vertex AI
-jarvis_tool = Tool(
-    function_declarations=[
-        control_home_assistant_func,
-        get_ha_state_func,
-        search_ha_entities_func,
-        get_person_location_func,
-        get_appliance_status_func,
-        get_weather_func,
-        get_travel_time_func,
-        google_search_func,
-        add_calendar_event_func,
-        list_calendar_events_func,
-        create_location_reminder_func,
-        play_music_func,
-        save_preference_func,  # FIXED: Was missing
-        get_preference_func,   # FIXED: Was missing
-        delete_preference_func,
-        get_current_time_func,
-        query_radarr_func,
-        add_to_radarr_func,
-        query_sonarr_func,
-        add_to_sonarr_func,
-        query_qbittorrent_func,
-        query_prowlarr_func,
-        check_vpn_status_func,
-        query_unifi_network_func,
-        query_unifi_controller_func,
-        analyze_camera_func,
-    ]
-)
+# Create the Tool list for Modern Google GenAI SDK
+jarvis_tool_list = [
+    types.Tool(
+        function_declarations=[
+            types.FunctionDeclaration(**control_home_assistant_func),
+            types.FunctionDeclaration(**get_ha_state_func),
+            types.FunctionDeclaration(**search_ha_entities_func),
+            types.FunctionDeclaration(**get_person_location_func),
+            types.FunctionDeclaration(**get_appliance_status_func),
+            types.FunctionDeclaration(**get_weather_func),
+            types.FunctionDeclaration(**get_travel_time_func),
+            types.FunctionDeclaration(**google_search_func),
+            types.FunctionDeclaration(**add_calendar_event_func),
+            types.FunctionDeclaration(**list_calendar_events_func),
+            types.FunctionDeclaration(**create_location_reminder_func),
+            types.FunctionDeclaration(**play_music_func),
+            types.FunctionDeclaration(**save_preference_func),
+            types.FunctionDeclaration(**get_preference_func),
+            types.FunctionDeclaration(**delete_preference_func),
+            types.FunctionDeclaration(**get_current_time_func),
+            types.FunctionDeclaration(**query_radarr_func),
+            types.FunctionDeclaration(**add_to_radarr_func),
+            types.FunctionDeclaration(**query_sonarr_func),
+            types.FunctionDeclaration(**add_to_sonarr_func),
+            types.FunctionDeclaration(**query_qbittorrent_func),
+            types.FunctionDeclaration(**query_prowlarr_func),
+            types.FunctionDeclaration(**check_vpn_status_func),
+            types.FunctionDeclaration(**query_unifi_network_func),
+            types.FunctionDeclaration(**query_unifi_controller_func),
+            types.FunctionDeclaration(**analyze_camera_func),
+        ]
+    )
+]
