@@ -2462,20 +2462,24 @@ def analyze_camera(camera_entity: str, question: str = "Describe this scene in a
             if not gcp_location or str(gcp_location).lower() in ['null', 'none', '']:
                 gcp_location = 'europe-west1'
             
-            # Use us-central1 for vision as it has the most reliable availability for new models
-            vertexai.init(project=config.GCP_PROJECT_ID, location="us-central1")
-            
-            # Use Gemini 3 Flash Preview for vision (as confirmed in Console)
-            model = GenerativeModel("gemini-3-flash-preview")
-            
-            # Create image part
-            image_part = Part.from_data(image_data, mime_type="image/jpeg")
-            
-            logger.info(f"Sending image to Vertex AI Gemini 3 Vision for analysis ({gcp_location})")
-            response = model.generate_content([question, image_part])
-            
-            # Return just the vision analysis
-            return response.text
+            try:
+                # Use us-central1 for vision as it has the most reliable availability for new models
+                vertexai.init(project=config.GCP_PROJECT_ID, location="us-central1")
+                
+                # Use Gemini 3 Flash Preview for vision (as confirmed in Console)
+                model = GenerativeModel("gemini-3-flash-preview")
+                
+                # Create image part
+                image_part = Part.from_data(image_data, mime_type="image/jpeg")
+                
+                logger.info(f"Sending image to Vertex AI Gemini 3 Vision for analysis (us-central1)")
+                response = model.generate_content([question, image_part])
+                return response.text
+            except Exception as e:
+                if "404" in str(e):
+                    logger.error(f"Vertex AI 404: {e}. Check Model Garden for 'gemini-3-flash-preview'.")
+                    return "Vertex AI Error: Model not found (404). Please ensure 'Gemini 3 Flash' is enabled in your Google Cloud Console."
+                raise e
         
         else:
             # AI Studio mode (original implementation)
