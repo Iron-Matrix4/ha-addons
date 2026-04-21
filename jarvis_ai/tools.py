@@ -2456,47 +2456,33 @@ def analyze_camera(camera_entity: str, question: str = "Describe this scene in a
                 if os.path.exists(credentials_path):
                     os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = credentials_path
                 
-                # Intelligent multi-model retry loop
-                # Jarvis will try models in order of performance/speed
-                vision_models = [
-                    'gemini-3-flash-preview',
-                    'gemini-1.5-flash-002',
-                    'gemini-1.5-flash',
-                    'gemini-2.5-flash'  # Verified but slow fallback
-                ]
+                client = genai.Client(
+                    vertexai=True,
+                    project=config.GCP_PROJECT_ID,
+                    location="us-central1"
+                )
                 
-                last_error = None
-                for model_id in vision_models:
-                    try:
-                        logger.info(f"Trying Vertex AI {model_id} via modern SDK (us-central1)")
-                        response = client.models.generate_content(
-                            model=model_id,
-                            contents=[
-                                types.Content(
-                                    role='user',
-                                    parts=[
-                                        types.Part.from_text(text=question),
-                                        types.Part.from_bytes(data=image_data, mime_type='image/jpeg')
-                                    ]
-                                )
+                # Use the same model that is working for the main brain
+                model_id = 'gemini-2.5-flash'
+                
+                logger.info(f"Trying Vertex AI {model_id} via modern SDK (us-central1)")
+                response = client.models.generate_content(
+                    model=model_id,
+                    contents=[
+                        types.Content(
+                            role='user',
+                            parts=[
+                                types.Part.from_text(text=question),
+                                types.Part.from_bytes(data=image_data, mime_type='image/jpeg')
                             ]
                         )
-                        logger.info(f"Successfully analyzed camera using {model_id}")
-                        return response.text
-                    except Exception as e:
-                        last_error = e
-                        if "404" in str(e):
-                            logger.warning(f"Vertex AI {model_id} not found/accessible, trying next fallback...")
-                            continue
-                        # If it's not a 404 (e.g., 400 role error, 429 quota), stop and report
-                        raise e
-                
-                # If we exhausted all fallbacks
-                if "404" in str(last_error):
-                    return "Vertex AI Error: No compatible vision models found. Please ensure a Gemini Flash model is enabled in your Model Garden."
-                raise last_error
+                    ]
+                )
+                return response.text
             except Exception as e:
                 logger.error(f"Vertex AI Vision error: {e}")
+                if "404" in str(e):
+                    return "Vertex AI Error: Vision model not found (404). Please ensure 'gemini-2.5-flash' is enabled for vision tasks."
                 raise e
         
         else:
