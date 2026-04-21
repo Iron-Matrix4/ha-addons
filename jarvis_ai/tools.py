@@ -2466,8 +2466,8 @@ def analyze_camera(camera_entity: str, question: str = "Describe this scene in a
                 # Use us-central1 for vision as it has the most reliable availability for new models
                 vertexai.init(project=config.GCP_PROJECT_ID, location="us-central1")
                 
-                # Use Gemini 3 Flash Preview for vision (as confirmed in Console)
-                model = GenerativeModel("gemini-3-flash-preview")
+                # Use Gemini 3.0 Flash (Stable) for vision
+                model = GenerativeModel("gemini-3.0-flash-001")
                 
                 # Create image part
                 image_part = Part.from_data(image_data, mime_type="image/jpeg")
