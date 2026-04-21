@@ -2470,6 +2470,7 @@ def analyze_camera(camera_entity: str, question: str = "Describe this scene in a
                     model=model_id,
                     contents=[
                         types.Content(
+                            role='user',
                             parts=[
                                 types.Part.from_text(text=question),
                                 types.Part.from_bytes(data=image_data, mime_type='image/jpeg')
