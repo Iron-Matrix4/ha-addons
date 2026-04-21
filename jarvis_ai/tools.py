@@ -2456,53 +2456,47 @@ def analyze_camera(camera_entity: str, question: str = "Describe this scene in a
                 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = credentials_path
             
             # Initialize Vertex AI for vision analysis
-            # Fallback to europe-west1 (confirmed supported region, closer to UK)
             gcp_location = getattr(config, 'GCP_LOCATION', 'europe-west1')
             
-            # Handle invalid values (HA sometimes passes "null" as a string)
+            # Handle invalid values
             if not gcp_location or str(gcp_location).lower() in ['null', 'none', '']:
                 gcp_location = 'europe-west1'
             
-            # DEBUG: Log what value is actually being passed
-            logger.error(f"DEBUG: GCP_LOCATION value = '{gcp_location}' (type: {type(gcp_location)})")
-            logger.error(f"DEBUG: config module = {config}")
-            logger.error(f"DEBUG: hasattr GCP_LOCATION = {hasattr(config, 'GCP_LOCATION')}")
+            vertexai.init(project=config.GCP_PROJECT_ID, location=gcp_location)
             
-            try:
-                vertexai.init(project=config.GCP_PROJECT_ID, location=gcp_location)
-                model = GenerativeModel("gemini-2.0-flash-001")
-                image_part = Part.from_data(image_data, mime_type="image/jpeg")
-                logger.info(f"Sending image to Vertex AI Vision ({gcp_location})")
-                response = model.generate_content([question, image_part])
-                return response.text
-            except Exception as vertex_err:
-                logger.warning(f"Vertex AI Vision failed: {vertex_err}. Falling back to AI Studio...")
-                pass # Fall through to AI Studio implementation below
+            # Use Gemini 3.0 Flash for vision
+            model = GenerativeModel("gemini-3.0-flash-001")
+            
+            # Create image part
+            image_part = Part.from_data(image_data, mime_type="image/jpeg")
+            
+            logger.info(f"Sending image to Vertex AI Gemini 3 Vision for analysis ({gcp_location})")
+            response = model.generate_content([question, image_part])
+            
+            # Return just the vision analysis
+            return response.text
         
-        # AI Studio mode (Fallback)
-        image_base64 = base64.b64encode(image_data).decode('utf-8')
-        content_type = snapshot_response.headers.get('Content-Type', 'image/jpeg')
-        vision_model = config.GEMINI_MODEL if "flash" in config.GEMINI_MODEL.lower() else "gemini-1.5-flash"
-        gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/{vision_model}:generateContent?key={config.GEMINI_API_KEY}"
-        
-        vision_payload = {
-            "contents": [{
-                "parts": [
-                    {"text": question},
-                    {
-                        "inline_data": {
-                            "mime_type": content_type,
-                            "data": image_base64
-                        }
-                    }
-                ]
-            }],
-                "generationConfig": {
-                    "temperature": 0.4,
-                    "maxOutputTokens": 512
-                }
+        else:
+            # AI Studio mode (original implementation)
+            image_base64 = base64.b64encode(image_data).decode('utf-8')
+            content_type = snapshot_response.headers.get('Content-Type', 'image/jpeg')
+            
+            # Use the configured model or fallback to 3.0 Flash
+            vision_model = config.GEMINI_MODEL if "flash" in config.GEMINI_MODEL.lower() else "gemini-3.0-flash"
+            
+            gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/{vision_model}:generateContent?key={config.GEMINI_API_KEY}"
+            
+            vision_payload = {
+                "contents": [{
+                    "parts": [
+                        {"text": question},
+                        {
+                            "inline_data": {
+                                "mime_type": content_type,
+                                "data": image_base64
+                    ]
+                }]
             }
-            
             
             logger.info(f"Sending image to AI Studio Gemini Vision for analysis")
             vision_response = requests.post(gemini_url, json=vision_payload, timeout=30)
