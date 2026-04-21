@@ -2470,8 +2470,8 @@ def analyze_camera(camera_entity: str, question: str = "Describe this scene in a
             
             vertexai.init(project=config.GCP_PROJECT_ID, location="us-central1")
             
-            # Use Gemini 2.0 Flash for vision (available in us-central1)
-            model = GenerativeModel("gemini-2.0-flash")
+            # Use Gemini 2.0 Flash for vision (exact Model ID from Model Garden)
+            model = GenerativeModel("gemini-2.0-flash-001")
             
             # Create image part
             image_part = Part.from_data(image_data, mime_type="image/jpeg")
