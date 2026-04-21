@@ -1,6 +1,6 @@
 name: "Jarvis AI Conversation Agent"
 description: "J.A.R.V.I.S. - Just A Rather Very Intelligent System. AI conversation agent powered by Gemini for Home Assistant voice pipeline."
-version: "1.3.9"
+version: "1.3.10"
 slug: "jarvis_ai"
 
 icon: icon.png
@@ -26,7 +26,7 @@ map:
 options:
   # === CORE AI SETTINGS (REQUIRED) ===
   gemini_api_key: ""
-  gemini_model: "gemini-2.0-flash-001"
+  gemini_model: "gemini-3.0-flash-001"
   gcp_project_id: ""
   
   # === OPTIONAL INTEGRATIONS ===
@@ -67,7 +67,7 @@ options:
 schema:
   # === CORE AI SETTINGS ===
   gemini_api_key: password?
-  gemini_model: list(gemini-2.0-flash-001|gemini-2.5-flash-lite|gemini-2.5-flash|gemini-2.5-flash-tts|gemma-3-12b|gemma-3-1b|gemma-3-27b|gemma-3-2b|gemma-3-4b)?
+  gemini_model: list(gemini-3.1-flash-001|gemini-3.0-flash-001|gemini-2.5-flash-lite|gemini-2.5-flash|gemini-2.0-flash-001|gemini-2.5-flash-tts|gemma-3-12b|gemma-3-1b|gemma-3-27b|gemma-3-2b|gemma-3-4b)?
   gcp_project_id: str?
   
   # === GOOGLE SERVICES ===
