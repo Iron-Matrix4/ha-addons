@@ -2468,7 +2468,7 @@ def analyze_camera(camera_entity: str, question: str = "Describe this scene in a
             logger.error(f"DEBUG: config module = {config}")
             logger.error(f"DEBUG: hasattr GCP_LOCATION = {hasattr(config, 'GCP_LOCATION')}")
             
-            vertexai.init(project=config.GCP_PROJECT_ID, location="us-central1")
+            vertexai.init(project=config.GCP_PROJECT_ID, location=gcp_location)
             
             # Use Gemini 2.0 Flash for vision (exact Model ID from Model Garden)
             model = GenerativeModel("gemini-2.0-flash-001")
