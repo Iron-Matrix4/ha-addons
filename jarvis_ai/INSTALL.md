@@ -185,7 +185,7 @@ Vertex AI offers higher rate limits, enterprise features, and access to the late
 |-------|-------|--------------|------|----------|
 | `gemini-2.5-flash-lite` | ⚡⚡⚡ | ⭐⭐ | 💰 | Voice assistant (default) |
 | `gemini-2.5-flash` | ⚡⚡ | ⭐⭐⭐ | 💰💰 | Complex reasoning |
-| `gemini-2.0-flash-exp` | ⚡⚡ | ⭐⭐⭐ | 💰💰 | Latest experimental |
+| `gemini-2.0-flash`     | ⚡⚡ | ⭐⭐⭐ | 💰💰 | Latest stable Flash model |
 
 To change the model:
 
