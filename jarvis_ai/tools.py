@@ -2462,8 +2462,8 @@ def analyze_camera(camera_entity: str, question: str = "Describe this scene in a
                     location="us-central1"
                 )
                 
-                # Use the same model that is working for the main brain
-                model_id = 'gemini-2.5-flash'
+                # Use the preview model the user confirmed they have access to
+                model_id = 'gemini-3-flash-preview'
                 
                 logger.info(f"Trying Vertex AI {model_id} via modern SDK (us-central1)")
                 response = client.models.generate_content(
