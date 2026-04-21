@@ -2459,42 +2459,29 @@ def analyze_camera(camera_entity: str, question: str = "Describe this scene in a
                 client = genai.Client(
                     vertexai=True,
                     project=config.GCP_PROJECT_ID,
-                    location="us-central1",
-                    http_options={'api_version': 'v1'}  # Force stable v1 API
+                    location="us-central1"
                 )
                 
-                # Try 3.0 Flash first, then 1.5 Flash if it fails
-                vision_models = ['gemini-3.0-flash-001', 'gemini-1.5-flash-002']
-                last_err = None
+                # Use the same model that is working for the main brain
+                model_id = 'gemini-2.5-flash'
                 
-                for model_id in vision_models:
-                    try:
-                        logger.info(f"Trying Vertex AI {model_id} via modern SDK (us-central1)")
-                        response = client.models.generate_content(
-                            model=model_id,
-                            contents=[
-                                types.Content(
-                                    parts=[
-                                        types.Part.from_text(text=question),
-                                        types.Part.from_bytes(data=image_data, mime_type='image/jpeg')
-                                    ]
-                                )
+                logger.info(f"Trying Vertex AI {model_id} via modern SDK (us-central1)")
+                response = client.models.generate_content(
+                    model=model_id,
+                    contents=[
+                        types.Content(
+                            parts=[
+                                types.Part.from_text(text=question),
+                                types.Part.from_bytes(data=image_data, mime_type='image/jpeg')
                             ]
                         )
-                        return response.text
-                    except Exception as model_err:
-                        last_err = model_err
-                        if "404" in str(model_err):
-                            logger.warning(f"Vertex AI {model_id} not found, trying next fallback...")
-                            continue
-                        raise model_err
-                
-                if "404" in str(last_err):
-                    logger.error(f"Vertex AI 404: All vision models failed. Check Model Garden.")
-                    return "Vertex AI Error: Model not found (404). Please ensure 'Gemini Flash' models are enabled in your Google Cloud Console."
-                raise last_err
+                    ]
+                )
+                return response.text
             except Exception as e:
                 logger.error(f"Vertex AI Vision error: {e}")
+                if "404" in str(e):
+                    return "Vertex AI Error: Vision model not found (404). Please ensure 'gemini-2.5-flash' is enabled for vision tasks."
                 raise e
         
         else:
