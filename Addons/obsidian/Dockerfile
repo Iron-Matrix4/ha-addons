@@ -3,9 +3,9 @@ FROM ${BUILD_FROM}
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install KasmVNC dependencies and Obsidian deps
 RUN apt-get update && apt-get install -y --no-install-recommends \
     xvfb \
+    x11vnc \
     openbox \
     wget \
     curl \
@@ -26,22 +26,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libfuse2 \
     procps \
     python3 \
-    python3-pip \
+    python3-websockify \
+    novnc \
     nginx \
     && rm -rf /var/lib/apt/lists/*
-
-# Install KasmVNC
-ARG KASMVNC_VERSION=1.3.3
-RUN ARCH=$(uname -m) && \
-    if [ "$ARCH" = "x86_64" ]; then \
-        wget -q "https://github.com/kasmtech/KasmVNC/releases/download/v${KASMVNC_VERSION}/kasmvncserver_bookworm_${KASMVNC_VERSION}_amd64.deb" -O /tmp/kasmvnc.deb; \
-    elif [ "$ARCH" = "aarch64" ]; then \
-        wget -q "https://github.com/kasmtech/KasmVNC/releases/download/v${KASMVNC_VERSION}/kasmvncserver_bookworm_${KASMVNC_VERSION}_arm64.deb" -O /tmp/kasmvnc.deb; \
-    fi && \
-    apt-get update && \
-    apt-get install -y --no-install-recommends /tmp/kasmvnc.deb && \
-    rm /tmp/kasmvnc.deb && \
-    rm -rf /var/lib/apt/lists/*
 
 # Download and extract Obsidian AppImage
 ARG OBSIDIAN_VERSION=1.8.10
@@ -58,10 +46,11 @@ RUN ARCH=$(uname -m) && \
     mv squashfs-root obsidian-extracted && \
     rm obsidian.AppImage
 
-# KasmVNC config directory
-RUN mkdir -p /root/.vnc
+# Set up nginx to serve noVNC and proxy websocket — all on port 8080
+# nginx handles the HA ingress path prefix transparently
+COPY nginx.conf /etc/nginx/nginx.conf
 
-COPY kasmvnc.yaml /root/.vnc/kasmvnc.yaml
+RUN mkdir -p /root/.config/openbox
 COPY openbox-rc.xml /root/.config/openbox/rc.xml
 
 COPY run.sh /run.sh

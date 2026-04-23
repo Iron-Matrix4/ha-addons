@@ -4,47 +4,26 @@ VAULT_PATH=$(bashio::config 'vault_path')
 RESOLUTION=$(bashio::config 'resolution')
 
 bashio::log.info "Starting Obsidian addon..."
-bashio::log.info "Vault path: $VAULT_PATH"
-bashio::log.info "Resolution: $RESOLUTION"
-
 mkdir -p "$VAULT_PATH"
 
 WIDTH=$(echo "$RESOLUTION" | cut -d'x' -f1)
 HEIGHT=$(echo "$RESOLUTION" | cut -d'x' -f2)
 
-# Update KasmVNC resolution config
-sed -i "s/width: 1280/width: $WIDTH/" /root/.vnc/kasmvnc.yaml
-sed -i "s/height: 800/height: $HEIGHT/" /root/.vnc/kasmvnc.yaml
-
-# KasmVNC needs a password file even with auth disabled
-mkdir -p /root/.vnc
-echo "" | vncpasswd -f > /root/.vnc/passwd 2>/dev/null || true
-chmod 600 /root/.vnc/passwd 2>/dev/null || true
-
-# Start KasmVNC (serves its own web UI on port 8080)
-bashio::log.info "Starting KasmVNC on port 8080..."
-vncserver :1 \
-    -geometry "${WIDTH}x${HEIGHT}" \
-    -depth 24 \
-    -websocketPort 8080 \
-    -httpd /usr/share/kasmvnc/www \
-    -noxstartup \
-    -nopw \
-    -SecurityTypes None \
-    2>&1 | while read line; do bashio::log.info "$line"; done &
-export DISPLAY=:1
-sleep 3
+# Start virtual framebuffer
+bashio::log.info "Starting Xvfb ${WIDTH}x${HEIGHT}..."
+Xvfb :99 -screen 0 "${WIDTH}x${HEIGHT}x24" -ac +extension GLX +render -noreset &
+export DISPLAY=:99
+sleep 2
 
 # Start window manager
-bashio::log.info "Starting Openbox..."
-DISPLAY=:1 openbox &
+openbox &
 sleep 1
 
 OBSIDIAN_BIN="/opt/obsidian-extracted/obsidian"
 
 launch_obsidian() {
     bashio::log.info "Launching Obsidian..."
-    DISPLAY=:1 "$OBSIDIAN_BIN" \
+    "$OBSIDIAN_BIN" \
         --no-sandbox \
         --disable-gpu \
         --disable-software-rasterizer \
@@ -61,6 +40,21 @@ sleep 4
 
 bashio::log.info "Obsidian startup output:"
 head -10 /var/log/obsidian.log 2>/dev/null | while read line; do bashio::log.info "$line"; done
+
+# x11vnc: export the X display as a raw VNC server on localhost:5900
+bashio::log.info "Starting x11vnc..."
+x11vnc -display :99 -nopw -forever -shared -rfbport 5900 -quiet &
+sleep 1
+
+# websockify: wrap VNC port 5900 as a WebSocket on port 5901
+# nginx then proxies /websockify → 5901
+bashio::log.info "Starting websockify on 5901..."
+websockify 5901 localhost:5900 &
+sleep 1
+
+# nginx: serves noVNC files + proxies /websockify → websockify
+bashio::log.info "Starting nginx on port 8080..."
+nginx
 
 bashio::log.info "Obsidian is ready — open the sidebar panel to use it."
 
