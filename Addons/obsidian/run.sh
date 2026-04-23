@@ -57,7 +57,7 @@ x11vnc -display :99 -nopw -xkb -ncache 10 \
 sleep 1
 
 bashio::log.info "Starting noVNC on port 8080..."
-websockify --web /usr/share/novnc 8080 localhost:5900 &
+websockify --web /usr/share/novnc --heartbeat 30 8080 localhost:5900 &
 
 bashio::log.info "Obsidian is ready — open the sidebar panel to use it."
 
