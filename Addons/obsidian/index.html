@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Obsidian</title>
+  <script>
+    // Auto-connect noVNC using the current path prefix (handles HA ingress)
+    window.addEventListener('load', function() {
+      var path = window.location.pathname;
+      // Strip trailing slash if present, then append /websockify
+      path = path.replace(/\/$/, '') + '/websockify';
+      var url = (window.location.protocol === 'https:' ? 'wss' : 'ws')
+                + '://' + window.location.host + path;
+      window.location.href = 'vnc.html?autoconnect=true&reconnect=true&reconnect_delay=2000&path=' + encodeURIComponent(path.replace(/^\//, ''));
+    });
+  </script>
+</head>
+<body></body>
+</html>

@@ -53,6 +53,9 @@ COPY nginx.conf /etc/nginx/nginx.conf
 RUN mkdir -p /root/.config/openbox
 COPY openbox-rc.xml /root/.config/openbox/rc.xml
 
+# Custom index.html that auto-connects with the correct HA ingress path
+COPY index.html /usr/share/novnc/index.html
+
 COPY run.sh /run.sh
 RUN chmod +x /run.sh
 
