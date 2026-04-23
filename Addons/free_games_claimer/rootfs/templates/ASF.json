@@ -1,0 +1,15 @@
+{
+  "Headless": true,
+  "IPC": true,
+  "IPCHost": "0.0.0.0",
+  "IPCPort": 1242,
+  "IPCPassword": null,
+  "IPCStartupCommands": [
+    "start SteamBot"
+  ],
+  "SteamOwnerID": 0,
+  "CurrentCulture": "en-US",
+  "AutoRestart": false,
+  "UpdateChannel": 0,
+  "UpdatePeriod": 0
+}

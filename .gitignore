@@ -50,3 +50,16 @@ infer_*.py
 
 # Memory database (contains user preferences)
 *.db
+
+# Backups and internal files
+Backups/
+*.zip
+*.tar.gz
+*.txt
+!CHANGELOG.md
+!README.md
+!requirements.txt
+
+# Scripts with potential tokens
+[0-9]
+scripts/

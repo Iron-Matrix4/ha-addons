@@ -1,60 +1,26 @@
-# Home Assistant Add-ons Repository
+# 🏠 Iron-Matrix4 Home Assistant Add-ons
 
 [![Add Repository to Home Assistant](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2FIron-Matrix4%2Fha-addons)
 
+Welcome to the Home Assistant Add-ons repository. This repository contains custom add-ons and system documentation for my smart home setup.
+
+---
+
+## 📂 Repository Structure
+
+### 🏠 [Home Assistant Setup](./Home%20Assistant%20Setup/)
+Comprehensive documentation of the HA instance, hardware, SSH keys, and system architecture.
+
+### 🧩 [Addons](./Addons/)
 A collection of custom add-ons for Home Assistant.
 
----
-
-## Available Add-ons
-
-### 🤖 [Jarvis AI](jarvis_ai/)
-
-**J.A.R.V.I.S.** - Just A Rather Very Intelligent System
-
-An intelligent voice-controlled conversation agent for Home Assistant, powered by Google Gemini. Features natural language control of your smart home, media systems, and information queries with the personality of Tony Stark's legendary AI assistant.
-
-## 🧩 Integration Installation (Optional)
-
-To enable the HTTP API integration (which allows Jarvis to work without Wyoming or for advanced features), you need to install the custom integration.
-
-We have moved the integration to a dedicated repository for easier HACS installation:
-**[Iron-Matrix4/ha-integrations](https://github.com/Iron-Matrix4/ha-integrations)**
-
-Please follow the installation instructions in that repository.
+- 🤖 **[Jarvis AI](./Addons/jarvis_ai/)** - Intelligent Tony Stark style voice assistant.
+- 🎵 **[Spotify Player](./Addons/spotify_player/)** - Simple Spotify integration.
+- 🎮 **[Free Games Claimer](./Addons/free_games_claimer/)** - Automated game claiming.
 
 ---
 
-## 🔧 Advanced Configuration
-
-**Features:**
-
-- 🏠 Full smart home control (lights, climate, covers, locks)
-- 🎵 Spotify integration via Spotcast
-- 🎬 Media management (Radarr, Sonarr, Prowlarr, qBittorrent)
-- 🌍 Web search and Google Maps travel time
-- 📅 Google Calendar integration
-- 🔒 UniFi Network queries
-- 🧠 Persistent memory for preferences
-- 🎭 Authentic J.A.R.V.I.S. personality
-
-[📖 Full Documentation](jarvis_ai/README.md) | [🚀 Installation Guide](jarvis_ai/INSTALL.md)
-
----
-
-### 🎵 [Spotify Player](spotify_player/)
-
-A simple Spotify player add-on for Home Assistant.
-
----
-
-## Installation
-
-### One-Click Install (Recommended)
-
-[![Add Repository to Home Assistant](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2FIron-Matrix4%2Fha-addons)
-
-### Manual Install
+## 🚀 Installation
 
 1. Go to **Settings → Add-ons → Add-on Store**
 2. Click the menu (⋮) → **Repositories**
@@ -64,12 +30,11 @@ A simple Spotify player add-on for Home Assistant.
 
 ---
 
-## Support
+## 🔧 Support
 
 For issues or feature requests, please [open an issue](https://github.com/Iron-Matrix4/ha-addons/issues).
 
 ---
 
-## License
-
+## 📄 License
 MIT License

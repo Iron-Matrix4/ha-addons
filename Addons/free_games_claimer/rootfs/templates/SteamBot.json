@@ -1,0 +1,27 @@
+{
+    "Enabled": true,
+    "SteamLogin": "STEAM_USERNAME",
+    "SteamPassword": "STEAM_PASSWORD",
+    "EnableFreePackages": true,
+    "PauseFreePackagesWhilePlaying": true,
+    "FreePackagesFilters": [
+        {
+            "NoCostOnly": true,
+            "Types": [
+                "Game"
+            ],
+            "IgnoredTypes": [
+                "Demo",
+                "Playtest",
+                "Application"
+            ]
+        },
+        {
+            "NoCostOnly": true,
+            "Types": [
+                "DLC"
+            ],
+            "IgnoredTypes": []
+        }
+    ]
+}
