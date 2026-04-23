@@ -52,7 +52,7 @@ bashio::log.info "Obsidian startup output:"
 head -20 /var/log/obsidian.log 2>/dev/null | while read line; do bashio::log.info "$line"; done
 
 bashio::log.info "Starting VNC server..."
-x11vnc -display :99 -nopw -listen localhost -xkb -ncache 10 \
+x11vnc -display :99 -nopw -xkb -ncache 10 \
     -ncache_cr -quiet -forever &
 sleep 1
 
