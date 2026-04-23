@@ -1,6 +1,6 @@
 name: "Obsidian"
 description: "Obsidian knowledge base running in a browser via noVNC. Access your vault from the HA sidebar."
-version: "1.0.7"
+version: "1.0.8"
 slug: "obsidian"
 
 icon: icon.png
@@ -13,15 +13,9 @@ map:
   - config:rw
 
 ports:
-  8080/tcp: 8080
+  8080/tcp: 8888
 ports_description:
   8080/tcp: "noVNC web interface"
-
-ingress: true
-ingress_port: 8080
-ingress_stream: true
-panel_icon: mdi:notebook-outline
-panel_title: Obsidian
 
 options:
   vault_path: "/config/obsidian-vault"
