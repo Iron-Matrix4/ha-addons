@@ -1,0 +1,24 @@
+network:
+  protocol: http
+  websocket_port: 8080
+  interface: 0.0.0.0
+  ssl:
+    require_ssl: false
+  udp:
+    public_ip: 127.0.0.1
+
+desktop:
+  resolution:
+    width: 1280
+    height: 800
+  allow_resize: true
+
+encoding:
+  max_frame_rate: 30
+  full_frame_rate: 1
+
+logging:
+  level: 0
+
+auth:
+  require_auth: false

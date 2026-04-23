@@ -1,6 +1,6 @@
 name: "Obsidian"
 description: "Obsidian knowledge base running in a browser via noVNC. Access your vault from the HA sidebar."
-version: "1.0.4"
+version: "1.0.5"
 slug: "obsidian"
 
 icon: icon.png
