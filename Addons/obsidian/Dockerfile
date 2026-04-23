@@ -25,7 +25,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libgbm1 \
     libxcb-dri3-0 \
     libxkbcommon0 \
-    fuse \
+    libasound2 \
+    libcups2 \
+    libpangocairo-1.0-0 \
     libfuse2 \
     procps \
     && rm -rf /var/lib/apt/lists/*
