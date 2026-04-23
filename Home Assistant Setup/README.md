@@ -28,12 +28,12 @@
 The SSH keys are used for remote management, debugging, and automated scripting (e.g., Jarvis AI integration).
 
 ### Key Files
-**Location:** `D:\AntiGravity\Smart Home\Home Assistant\ssh_keys\`
+**Location:** `PATH-TO-KEYS\ssh_keys\`
 
 - **Private Key:** `ha_key` (Used for authenticating to the HA instance)
 - **Public Key:** `ha_key.pub`
 - **Type:** `ED25519`
-- **Comment:** `antigravity`
+- **Comment:** `ssh-key`
 
 ### Public Key Content
 ```text
@@ -43,7 +43,7 @@ ssh-ed25519 [YOUR_PUBLIC_KEY] antigravity
 ### Usage
 To connect to the Home Assistant instance from a terminal:
 ```powershell
-ssh -i "D:\AntiGravity\Smart Home\Home Assistant\ssh_keys\ha_key" root@[YOUR_HA_IP]
+ssh -i "PATH-TO-KEYS\ssh_keys\ha_key" root@[YOUR_HA_IP]
 ```
 
 ---
