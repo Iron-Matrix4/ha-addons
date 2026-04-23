@@ -1,0 +1,31 @@
+name: "Obsidian"
+description: "Obsidian knowledge base running in a browser via noVNC. Access your vault from the HA sidebar."
+version: "1.0.0"
+slug: "obsidian"
+
+icon: icon.png
+init: false
+arch:
+  - amd64
+  - aarch64
+
+map:
+  - config:rw
+
+ports:
+  8080/tcp: 8080
+ports_description:
+  8080/tcp: "noVNC web interface"
+
+ingress: true
+ingress_port: 8080
+panel_icon: mdi:notebook-outline
+panel_title: Obsidian
+
+options:
+  vault_path: "/config/obsidian-vault"
+  resolution: "1280x800"
+
+schema:
+  vault_path: str
+  resolution: "list(1280x800|1920x1080|1366x768|1024x768)"
