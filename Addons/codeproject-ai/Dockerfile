@@ -1,0 +1,8 @@
+ARG BUILD_FROM
+FROM codeproject/ai-server:latest
+
+ENV CPAI_PORT=32168
+ENV CPAI_MODULES_PATH=/app/modules
+ENV CPAI_DATA_DIR=/data
+
+EXPOSE 32168

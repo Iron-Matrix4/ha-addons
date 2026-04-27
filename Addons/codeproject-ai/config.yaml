@@ -1,0 +1,20 @@
+name: "CodeProject.AI Server"
+description: "Self-hosted AI inference server for face recognition and object detection. Used by Double Take for Frigate camera analysis."
+version: "1.0.0"
+slug: "codeproject-ai"
+init: false
+arch:
+  - amd64
+
+ports:
+  32168/tcp: 32168
+ports_description:
+  32168/tcp: "CodeProject.AI API"
+
+map:
+  - data:rw
+
+options: {}
+schema: {}
+
+url: "https://www.codeproject.com/ai"
