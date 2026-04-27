@@ -35,9 +35,8 @@ def recognize():
         })
 
     return jsonify({
-        "success": cp.get("success", False),
+        "success": True,
         "predictions": predictions,
-        "error": cp.get("error"),
     })
 
 
