@@ -13,7 +13,6 @@ while true; do
         --port 3005 \
         --outputTransport sse \
         --cors \
-        --allowReinitialize \
         --stdio "obsidian-mcp ${VAULT_PATH}"
     bashio::log.warning "supergateway exited, restarting in 2s..."
     sleep 2
