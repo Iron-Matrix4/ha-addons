@@ -1,0 +1,20 @@
+name: "CodeProject.AI DeepStack Proxy"
+description: "Translates DeepStack API calls to CodeProject.AI format, allowing Double Take to use CodeProject.AI for face recognition."
+version: "1.0.0"
+slug: "cpai-deepstack-proxy"
+init: false
+arch:
+  - amd64
+
+ports:
+  5000/tcp: 5002
+ports_description:
+  5000/tcp: "DeepStack-compatible API"
+
+options:
+  cpai_url: "http://192.168.4.10:32168"
+
+schema:
+  cpai_url: str
+
+url: "https://github.com/Iron-Matrix4/ha-addons"
