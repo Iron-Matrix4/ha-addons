@@ -11,7 +11,7 @@ bashio::log.info "Listening on :3005 (streamable HTTP)"
 while true; do
     supergateway \
         --port 3005 \
-        --transportType http \
+        --outputTransport streamableHttp \
         --allowReinitialize \
         --stdio "obsidian-mcp ${VAULT_PATH}"
     bashio::log.warning "supergateway exited, restarting in 2s..."
